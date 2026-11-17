@@ -18,6 +18,10 @@ import {
   Wrench,
 } from "lucide-react";
 import { DiagnosticResponse, RiskLevel } from "@/types/repair";
+import {
+  buildLazadaAffiliateLink,
+  buildShopeeAffiliateLink,
+} from "@/lib/affiliate";
 import MermaidDiagram from "./MermaidDiagram";
 
 interface DiagnosticCardProps {
@@ -318,9 +322,7 @@ export default function DiagnosticCard({
                     </div>
                     <div className="flex items-center gap-2 pt-0.5">
                       <a
-                        href={`https://shopee.co.th/search?keyword=${encodeURIComponent(
-                          tool.name
-                        )}`}
+                        href={buildShopeeAffiliateLink(tool.name)}
                         target="_blank"
                         rel="noopener noreferrer"
                         className="text-[11px] font-medium text-orange-600 hover:underline inline-flex items-center gap-0.5"
@@ -330,9 +332,7 @@ export default function DiagnosticCard({
                       </a>
                       <span className="text-slate-300">•</span>
                       <a
-                        href={`https://www.lazada.co.th/catalog/?q=${encodeURIComponent(
-                          tool.name
-                        )}`}
+                        href={buildLazadaAffiliateLink(tool.name)}
                         target="_blank"
                         rel="noopener noreferrer"
                         className="text-[11px] font-medium text-indigo-600 hover:underline inline-flex items-center gap-0.5"
@@ -389,9 +389,7 @@ export default function DiagnosticCard({
 
                     <div className="pt-1 flex flex-wrap gap-2">
                       <a
-                        href={`https://shopee.co.th/search?keyword=${encodeURIComponent(
-                          part.searchKeyword
-                        )}`}
+                        href={buildShopeeAffiliateLink(part.searchKeyword)}
                         target="_blank"
                         rel="noopener noreferrer"
                         className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-medium bg-orange-600 text-white hover:bg-orange-700 transition-colors"
@@ -400,9 +398,7 @@ export default function DiagnosticCard({
                         <ExternalLink className="w-3 h-3" />
                       </a>
                       <a
-                        href={`https://www.lazada.co.th/catalog/?q=${encodeURIComponent(
-                          part.searchKeyword
-                        )}`}
+                        href={buildLazadaAffiliateLink(part.searchKeyword)}
                         target="_blank"
                         rel="noopener noreferrer"
                         className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-medium bg-indigo-600 text-white hover:bg-indigo-700 transition-colors"
