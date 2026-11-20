@@ -11,7 +11,7 @@ interface WizardPanelProps {
   disabled?: boolean;
 }
 
-export default function WizardPanel({
+function WizardPanel({
   questions,
   onSubmit,
   onDismiss,
@@ -58,59 +58,63 @@ export default function WizardPanel({
   };
 
   return (
-    <div className="rounded-2xl border border-orange-200 bg-white shadow-md overflow-hidden">
+    <div className="h-full flex flex-col bg-white">
       {/* Header & Tabs */}
-      <div className="bg-orange-50/70 border-b border-orange-100 px-3.5 py-2.5 flex items-center justify-between gap-2">
-        <div className="flex items-center gap-2 overflow-x-auto no-scrollbar">
-          <HelpCircle className="w-4 h-4 text-orange-600 shrink-0" />
-          <span className="text-xs font-bold text-slate-800 shrink-0">
-            ตอบคำถามช่วยวิเคราะห์:
-          </span>
-          <div className="flex items-center gap-1">
-            {questions.map((q, idx) => {
-              const hasAns = Boolean(
-                answers[q.id] &&
-                  (answers[q.id] !== "__CUSTOM__" || customTexts[q.id]?.trim())
-              );
-              const isActive = idx === activeTab;
-              return (
-                <button
-                  key={q.id}
-                  type="button"
-                  onClick={() => setActiveTab(idx)}
-                  className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium transition-colors shrink-0 ${
-                    isActive
-                      ? "bg-orange-600 text-white"
-                      : hasAns
-                      ? "bg-emerald-100 text-emerald-800 hover:bg-emerald-200"
-                      : "bg-white text-slate-600 border border-slate-200 hover:bg-slate-100"
-                  }`}
-                >
-                  {hasAns && !isActive && <Check className="w-3 h-3" />}
-                  <span>{q.tabLabel}</span>
-                </button>
-              );
-            })}
+      <div className="shrink-0 bg-orange-50/80 border-b border-orange-100 px-4 py-3 space-y-2.5">
+        <div className="flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2 min-w-0">
+            <HelpCircle className="w-4 h-4 text-orange-600 shrink-0" />
+            <span className="text-sm font-bold text-slate-900 truncate">
+              ตอบคำถามช่วยวิเคราะห์
+            </span>
           </div>
+
+          <button
+            type="button"
+            onClick={onDismiss}
+            className="p-1 text-slate-400 hover:text-slate-700 hover:bg-orange-100/70 rounded-md shrink-0 transition-colors"
+            title="ซ่อนแผงคำถาม"
+            aria-label="ซ่อนแผงคำถามช่วยวิเคราะห์"
+          >
+            <X className="w-4 h-4" />
+          </button>
         </div>
 
-        <button
-          type="button"
-          onClick={onDismiss}
-          className="p-1 text-slate-400 hover:text-slate-700 rounded-md shrink-0"
-          title="ปิดตัวช่วย"
-        >
-          <X className="w-4 h-4" />
-        </button>
+        <div className="flex flex-wrap items-center gap-1.5">
+          {questions.map((q, idx) => {
+            const hasAns = Boolean(
+              answers[q.id] &&
+                (answers[q.id] !== "__CUSTOM__" || customTexts[q.id]?.trim())
+            );
+            const isActive = idx === activeTab;
+            return (
+              <button
+                key={q.id}
+                type="button"
+                onClick={() => setActiveTab(idx)}
+                className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium transition-colors ${
+                  isActive
+                    ? "bg-orange-600 text-white"
+                    : hasAns
+                    ? "bg-emerald-100 text-emerald-800 hover:bg-emerald-200"
+                    : "bg-white text-slate-600 border border-slate-200 hover:bg-slate-100"
+                }`}
+              >
+                {hasAns && !isActive && <Check className="w-3 h-3" />}
+                <span>{q.tabLabel}</span>
+              </button>
+            );
+          })}
+        </div>
       </div>
 
-      {/* Question Body */}
-      <div className="p-3.5 space-y-2.5">
-        <p className="text-xs sm:text-sm font-semibold text-slate-900">
+      {/* Scrollable Question Body */}
+      <div className="flex-1 min-h-0 overflow-y-auto p-4 space-y-3">
+        <p className="text-sm font-semibold text-slate-900 leading-relaxed">
           {currentQ.question}
         </p>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+        <div className="grid grid-cols-1 gap-2">
           {currentQ.options.map((opt, idx) => {
             const selected = currentAnswer === opt.label;
             return (
@@ -194,35 +198,38 @@ export default function WizardPanel({
             className="w-full rounded-lg border border-slate-300 px-3 py-2 text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-orange-500"
           />
         )}
+      </div>
 
-        <div className="flex items-center justify-between pt-1">
-          <div className="text-[11px] text-slate-500">
-            ตอบแล้ว {answeredCount} / {questions.length} ข้อ
-          </div>
-          <div className="flex items-center gap-2">
-            {activeTab < questions.length - 1 && (
-              <button
-                type="button"
-                onClick={() => setActiveTab((prev) => prev + 1)}
-                className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium text-slate-700 bg-slate-100 hover:bg-slate-200"
-              >
-                <span>ข้อถัดไป</span>
-                <ChevronRight className="w-3.5 h-3.5" />
-              </button>
-            )}
+      {/* Bottom Sticky Action Bar */}
+      <div className="shrink-0 border-t border-slate-200 bg-slate-50/90 px-4 py-3 flex items-center justify-between gap-2">
+        <div className="text-[11px] text-slate-500">
+          ตอบแล้ว {answeredCount} / {questions.length} ข้อ
+        </div>
+        <div className="flex items-center gap-2">
+          {activeTab < questions.length - 1 && (
             <button
               type="button"
-              disabled={disabled || answeredCount === 0}
-              onClick={handleSendAll}
-              className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-semibold text-white bg-orange-600 hover:bg-orange-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+              onClick={() => setActiveTab((prev) => prev + 1)}
+              className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium text-slate-700 bg-white border border-slate-200 hover:bg-slate-100"
             >
-              <Send className="w-3.5 h-3.5" />
-              <span>ส่งคำตอบ ({answeredCount})</span>
+              <span>ข้อถัดไป</span>
+              <ChevronRight className="w-3.5 h-3.5" />
             </button>
-          </div>
+          )}
+          <button
+            type="button"
+            disabled={disabled || answeredCount === 0}
+            onClick={handleSendAll}
+            className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-semibold text-white bg-orange-600 hover:bg-orange-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+          >
+            <Send className="w-3.5 h-3.5" />
+            <span>ส่งคำตอบ ({answeredCount})</span>
+          </button>
         </div>
       </div>
     </div>
   );
 }
+
+export default React.memo(WizardPanel);
 

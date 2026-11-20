@@ -12,13 +12,12 @@ import {
   Send,
   X,
 } from "lucide-react";
-import WizardPanel from "@/components/WizardPanel";
 import { formatFileSize } from "@/lib/case-helpers";
 import {
   isSpeechRecognitionSupported,
   startThaiSpeechRecognition,
 } from "@/lib/speech";
-import { FileAttachment, WizardQuestion } from "@/types/repair";
+import { FileAttachment } from "@/types/repair";
 
 interface ChatComposerProps {
   input: string;
@@ -32,9 +31,6 @@ interface ChatComposerProps {
   onSend: (overrideText?: string) => void;
   isLoading: boolean;
   hasMessages: boolean;
-  wizardKey?: string;
-  wizardQuestions: WizardQuestion[];
-  onDismissWizard: () => void;
 }
 
 const emptySubscribe = () => () => {};
@@ -57,9 +53,6 @@ export default function ChatComposer({
   onSend,
   isLoading,
   hasMessages,
-  wizardKey,
-  wizardQuestions,
-  onDismissWizard,
 }: ChatComposerProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const cameraInputRef = useRef<HTMLInputElement>(null);
@@ -156,18 +149,8 @@ export default function ChatComposer({
   };
 
   return (
-    <footer className="bg-white border-t border-slate-200 px-4 py-3 shrink-0">
-      <div className="max-w-3xl mx-auto space-y-3">
-        {wizardQuestions.length > 0 && (
-          <WizardPanel
-            key={wizardKey}
-            questions={wizardQuestions}
-            disabled={isLoading}
-            onDismiss={onDismissWizard}
-            onSubmit={(formatted) => triggerSend(formatted)}
-          />
-        )}
-
+    <footer className="bg-white border-t border-slate-200 px-4 py-2.5 shrink-0">
+      <div className="max-w-4xl mx-auto space-y-2.5">
         {hasMessages && (
           <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar">
             {QUICK_CHIPS.map((chip) => (

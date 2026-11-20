@@ -3,6 +3,7 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   ClipboardCheck,
+  HelpCircle,
   Menu,
   Sparkles,
   UploadCloud,
@@ -16,6 +17,7 @@ import ImageLightbox from "@/components/ImageLightbox";
 import RepairSheetModal from "@/components/RepairSheetModal";
 import ToastContainer from "@/components/ToastContainer";
 import WelcomeScreen from "@/components/WelcomeScreen";
+import WizardPanel from "@/components/WizardPanel";
 import {
   createAssistantMessage,
   createEmptyCase,
@@ -92,6 +94,7 @@ export default function FixItWorkspace() {
   const [wizardDismissedForMsgId, setWizardDismissedForMsgId] = useState<
     string | null
   >(null);
+  const [mobilePane, setMobilePane] = useState<"guide" | "wizard">("guide");
   const [toasts, setToasts] = useState<ToastItem[]>([]);
 
   const [lightboxImage, setLightboxImage] = useState<{
@@ -113,6 +116,7 @@ export default function FixItWorkspace() {
     null
   );
   const activeCaseIdRef = useRef("");
+  const lastAssistantMsgIdRef = useRef<string | null>(null);
   const sendMessageRef = useRef<
     (overrideText?: string, overrideCategory?: RepairCategory) => void
   >(() => {});
@@ -268,6 +272,7 @@ export default function FixItWorkspace() {
 
   const handleSelectCase = useCallback((id: string) => {
     setActiveCaseId(id);
+    setMobilePane("guide");
     setSidebarOpen(false);
   }, []);
 
@@ -276,6 +281,7 @@ export default function FixItWorkspace() {
     setCases((prev) => [newCase, ...prev]);
     setActiveCaseId(newCase.id);
     setWizardDismissedForMsgId(null);
+    setMobilePane("guide");
     setSidebarOpen(false);
   }, []);
 
@@ -300,6 +306,7 @@ export default function FixItWorkspace() {
     setCases((prev) => [newCase, ...prev]);
     setActiveCaseId(newCase.id);
     setWizardDismissedForMsgId(null);
+    setMobilePane("guide");
     setShowGarageModal(false);
     setSidebarOpen(false);
     addToast(
@@ -766,6 +773,7 @@ export default function FixItWorkspace() {
     if (!overrideText) setInput("");
     setAttachments([]);
     setWizardDismissedForMsgId(null);
+    setMobilePane("guide");
 
     const updatedTitle =
       targetCase.messages.length === 0
@@ -903,13 +911,39 @@ export default function FixItWorkspace() {
     .reverse()
     .find((m) => m.role === "assistant");
 
-  const activeWizardQuestions =
+  const lastAssistantMsgId = lastAssistantMsg?.id ?? null;
+
+  useEffect(() => {
+    lastAssistantMsgIdRef.current = lastAssistantMsgId;
+  }, [lastAssistantMsgId]);
+
+  const handleDismissWizard = useCallback(() => {
+    if (lastAssistantMsgIdRef.current) {
+      setWizardDismissedForMsgId(lastAssistantMsgIdRef.current);
+    }
+    setMobilePane("guide");
+  }, []);
+
+  const stableOnWizardSubmit = useCallback((formatted: string) => {
+    setMobilePane("guide");
+    sendMessageRef.current(formatted);
+  }, []);
+
+  const availableWizardQuestions =
     lastAssistantMsg &&
-    lastAssistantMsg.id !== wizardDismissedForMsgId &&
     activeCase?.messages[activeCase.messages.length - 1]?.id ===
       lastAssistantMsg.id
       ? lastAssistantMsg.diagnostic?.wizardQuestions || []
       : [];
+
+  const isWizardDismissed = Boolean(
+    lastAssistantMsg && lastAssistantMsg.id === wizardDismissedForMsgId
+  );
+  const activeWizardQuestions = isWizardDismissed
+    ? []
+    : availableWizardQuestions;
+  const hasActiveWizard = activeWizardQuestions.length > 0;
+  const effectiveMobilePane = hasActiveWizard ? mobilePane : "guide";
 
   const hasAnyDiagnostic = Boolean(
     activeCase?.messages.some((m) => m.role === "assistant" && m.diagnostic)
@@ -1036,6 +1070,21 @@ export default function FixItWorkspace() {
                 </button>
               </div>
 
+              {availableWizardQuestions.length > 0 && isWizardDismissed && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setWizardDismissedForMsgId(null);
+                    setMobilePane("wizard");
+                  }}
+                  className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-orange-50 text-orange-700 border border-orange-200 hover:bg-orange-100 transition-colors"
+                  title="เปิดช่องตอบคำถามช่วยวิเคราะห์"
+                >
+                  <HelpCircle className="w-3.5 h-3.5" />
+                  <span className="hidden sm:inline">คำถามช่วยวิเคราะห์</span>
+                </button>
+              )}
+
               {hasAnyDiagnostic && (
                 <button
                   type="button"
@@ -1048,7 +1097,7 @@ export default function FixItWorkspace() {
                 </button>
               )}
 
-              <span className="hidden md:inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-orange-50 text-orange-800 border border-orange-200">
+              <span className="hidden xl:inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-orange-50 text-orange-800 border border-orange-200">
                 <Sparkles className="w-3.5 h-3.5 text-orange-600" />
                 <span>Dev. By Kru.Gorthailand</span>
               </span>
@@ -1065,37 +1114,93 @@ export default function FixItWorkspace() {
             </div>
           )}
 
-          <main className="flex-1 overflow-y-auto px-4 py-6">
-            <div className="max-w-3xl mx-auto space-y-6">
-              {(!activeCase || activeCase.messages.length === 0) && (
-                <WelcomeScreen
-                  assets={assets}
-                  onSelectStarter={(prompt, category) =>
-                    sendMessage(prompt, category)
-                  }
-                  onSelectAsset={handleStartCaseWithAsset}
-                  onOpenGarage={() => setShowGarageModal(true)}
-                />
-              )}
-
-              {activeCase && activeCase.messages.length > 0 && (
-                <ChatMessageList
-                  messages={activeCase.messages}
-                  isLoading={isLoading}
-                  loadingProgress={loadingProgress}
-                  completedSteps={activeCase.completedSteps}
-                  acknowledgedSafety={activeCase.acknowledgedSafety}
-                  onCancelLoading={handleCancelRequest}
-                  onRetryMessage={stableOnRetryMessage}
-                  onToggleStep={handleToggleStep}
-                  onToggleSafetyAck={handleToggleSafetyAck}
-                  onQuickReply={handleQuickReply}
-                  onQuickSend={stableOnQuickSend}
-                  onPreviewImage={setLightboxImage}
-                />
-              )}
+          {hasActiveWizard && (
+            <div className="md:hidden border-b border-slate-200 bg-white px-3 py-2 shrink-0">
+              <div className="grid grid-cols-2 gap-1.5 rounded-xl bg-slate-100 p-1">
+                <button
+                  type="button"
+                  onClick={() => setMobilePane("guide")}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
+                    effectiveMobilePane === "guide"
+                      ? "bg-white text-slate-900 shadow-2xs"
+                      : "text-slate-600 hover:text-slate-900"
+                  }`}
+                >
+                  แนวทางการตรวจเช็ก
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setMobilePane("wizard")}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
+                    effectiveMobilePane === "wizard"
+                      ? "bg-orange-600 text-white shadow-2xs"
+                      : "text-slate-600 hover:text-slate-900"
+                  }`}
+                >
+                  ตอบคำถามช่วยวิเคราะห์ ({activeWizardQuestions.length})
+                </button>
+              </div>
             </div>
-          </main>
+          )}
+
+          <div className="flex-1 min-h-0 flex flex-col md:flex-row overflow-hidden">
+            <main
+              className={`flex-1 min-w-0 min-h-0 overflow-y-auto px-4 sm:px-5 py-5 ${
+                hasActiveWizard && effectiveMobilePane === "wizard"
+                  ? "hidden md:block"
+                  : "block"
+              }`}
+            >
+              <div className="max-w-3xl mx-auto space-y-6">
+                {(!activeCase || activeCase.messages.length === 0) && (
+                  <WelcomeScreen
+                    assets={assets}
+                    onSelectStarter={(prompt, category) =>
+                      sendMessage(prompt, category)
+                    }
+                    onSelectAsset={handleStartCaseWithAsset}
+                    onOpenGarage={() => setShowGarageModal(true)}
+                  />
+                )}
+
+                {activeCase && activeCase.messages.length > 0 && (
+                  <ChatMessageList
+                    messages={activeCase.messages}
+                    isLoading={isLoading}
+                    loadingProgress={loadingProgress}
+                    completedSteps={activeCase.completedSteps}
+                    acknowledgedSafety={activeCase.acknowledgedSafety}
+                    onCancelLoading={handleCancelRequest}
+                    onRetryMessage={stableOnRetryMessage}
+                    onToggleStep={handleToggleStep}
+                    onToggleSafetyAck={handleToggleSafetyAck}
+                    onQuickReply={handleQuickReply}
+                    onQuickSend={stableOnQuickSend}
+                    onPreviewImage={setLightboxImage}
+                  />
+                )}
+              </div>
+            </main>
+
+            {hasActiveWizard && (
+              <aside
+                aria-label="ตอบคำถามช่วยวิเคราะห์"
+                className={`flex-1 min-h-0 md:flex-none md:w-[320px] lg:w-[360px] xl:w-[400px] shrink-0 md:border-l border-slate-200 bg-white ${
+                  effectiveMobilePane === "wizard"
+                    ? "flex flex-col"
+                    : "hidden md:flex md:flex-col"
+                }`}
+              >
+                <WizardPanel
+                  key={lastAssistantMsg?.id}
+                  questions={activeWizardQuestions}
+                  disabled={isLoading}
+                  onDismiss={handleDismissWizard}
+                  onSubmit={stableOnWizardSubmit}
+                />
+              </aside>
+            )}
+          </div>
 
           <ChatComposer
             input={input}
@@ -1111,12 +1216,6 @@ export default function FixItWorkspace() {
             onSend={(override) => sendMessage(override)}
             isLoading={isLoading}
             hasMessages={Boolean(activeCase && activeCase.messages.length > 0)}
-            wizardKey={lastAssistantMsg?.id}
-            wizardQuestions={activeWizardQuestions}
-            onDismissWizard={() =>
-              lastAssistantMsg &&
-              setWizardDismissedForMsgId(lastAssistantMsg.id)
-            }
           />
         </div>
       </div>
