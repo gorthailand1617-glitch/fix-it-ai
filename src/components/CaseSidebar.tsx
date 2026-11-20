@@ -36,7 +36,7 @@ const FILTER_OPTIONS: { id: RepairCategory | "all"; label: string }[] = [
   { id: "home_office", label: "สำนักงาน" },
 ];
 
-export default function CaseSidebar({
+function CaseSidebar({
   cases,
   activeCaseId,
   assetCount,
@@ -313,3 +313,5 @@ export default function CaseSidebar({
     </>
   );
 }
+
+export default React.memo(CaseSidebar);

@@ -42,7 +42,7 @@ function getMermaid(): Promise<MermaidModule> {
   return mermaidSingletonPromise;
 }
 
-export default function MermaidDiagram({ chart }: MermaidDiagramProps) {
+function MermaidDiagram({ chart }: MermaidDiagramProps) {
   const uniqueId = useId().replace(/:/g, "");
   const [svg, setSvg] = useState<string>("");
   const [showCode, setShowCode] = useState(false);
@@ -193,3 +193,5 @@ export default function MermaidDiagram({ chart }: MermaidDiagramProps) {
     </>
   );
 }
+
+export default React.memo(MermaidDiagram);

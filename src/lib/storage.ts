@@ -24,6 +24,9 @@ const MODEL_PROFILE_FALLBACK_KEY = "fix-it-ai-model-profile-v1";
 
 export type StorageBackend = "indexeddb" | "localstorage";
 
+let dbPromise: Promise<IDBDatabase | null> | null = null;
+let lastSavedCases: Map<string, RepairCase> | null = null;
+
 function isQuotaExceededError(err: unknown): boolean {
   if (typeof DOMException !== "undefined" && err instanceof DOMException) {
     return (
@@ -45,8 +48,11 @@ function openDb(): Promise<IDBDatabase | null> {
   if (typeof indexedDB === "undefined") {
     return Promise.resolve(null);
   }
+  if (dbPromise) {
+    return dbPromise;
+  }
 
-  return new Promise((resolve) => {
+  dbPromise = new Promise((resolve) => {
     try {
       const request = indexedDB.open(DB_NAME, DB_VERSION);
 
@@ -60,13 +66,32 @@ function openDb(): Promise<IDBDatabase | null> {
         }
       };
 
-      request.onsuccess = () => resolve(request.result);
-      request.onerror = () => resolve(null);
-      request.onblocked = () => resolve(null);
+      request.onsuccess = () => {
+        const db = request.result;
+        db.onclose = () => {
+          dbPromise = null;
+        };
+        db.onversionchange = () => {
+          dbPromise = null;
+          db.close();
+        };
+        resolve(db);
+      };
+      request.onerror = () => {
+        dbPromise = null;
+        resolve(null);
+      };
+      request.onblocked = () => {
+        dbPromise = null;
+        resolve(null);
+      };
     } catch {
+      dbPromise = null;
       resolve(null);
     }
   });
+
+  return dbPromise;
 }
 
 function readLegacyLocalStorageCases(): RepairCase[] {
@@ -96,30 +121,82 @@ function readAllCasesFromIdb(db: IDBDatabase): Promise<RepairCase[]> {
       };
       req.onerror = () => reject(req.error);
     } catch (err) {
+      dbPromise = null;
       reject(err);
     }
   });
 }
 
-function writeAllCasesToIdb(
+function writeCasesIncrementalToIdb(
   db: IDBDatabase,
   cases: RepairCase[]
 ): Promise<{ ok: boolean; quotaExceeded?: boolean }> {
+  const currentIds = new Set(cases.map((c) => c.id));
+
+  if (lastSavedCases !== null) {
+    const prevMap = lastSavedCases;
+    const changed = cases.filter((c) => prevMap.get(c.id) !== c);
+    const removedIds = Array.from(prevMap.keys()).filter(
+      (id) => !currentIds.has(id)
+    );
+
+    if (changed.length === 0 && removedIds.length === 0) {
+      return Promise.resolve({ ok: true });
+    }
+
+    return new Promise((resolve) => {
+      try {
+        const tx = db.transaction(CASES_STORE, "readwrite");
+        const store = tx.objectStore(CASES_STORE);
+        for (const id of removedIds) {
+          store.delete(id);
+        }
+        for (const item of changed) {
+          store.put(item);
+        }
+
+        tx.oncomplete = () => {
+          lastSavedCases = new Map(cases.map((c) => [c.id, c]));
+          resolve({ ok: true });
+        };
+        tx.onerror = () =>
+          resolve({ ok: false, quotaExceeded: isQuotaExceededError(tx.error) });
+        tx.onabort = () =>
+          resolve({ ok: false, quotaExceeded: isQuotaExceededError(tx.error) });
+      } catch (err) {
+        dbPromise = null;
+        resolve({ ok: false, quotaExceeded: isQuotaExceededError(err) });
+      }
+    });
+  }
+
   return new Promise((resolve) => {
     try {
       const tx = db.transaction(CASES_STORE, "readwrite");
       const store = tx.objectStore(CASES_STORE);
-      store.clear();
-      for (const item of cases) {
-        store.put(item);
-      }
+      const keysReq = store.getAllKeys();
+      keysReq.onsuccess = () => {
+        const existingKeys = Array.isArray(keysReq.result) ? keysReq.result : [];
+        for (const key of existingKeys) {
+          if (typeof key === "string" && !currentIds.has(key)) {
+            store.delete(key);
+          }
+        }
+        for (const item of cases) {
+          store.put(item);
+        }
+      };
 
-      tx.oncomplete = () => resolve({ ok: true });
+      tx.oncomplete = () => {
+        lastSavedCases = new Map(cases.map((c) => [c.id, c]));
+        resolve({ ok: true });
+      };
       tx.onerror = () =>
         resolve({ ok: false, quotaExceeded: isQuotaExceededError(tx.error) });
       tx.onabort = () =>
         resolve({ ok: false, quotaExceeded: isQuotaExceededError(tx.error) });
     } catch (err) {
+      dbPromise = null;
       resolve({ ok: false, quotaExceeded: isQuotaExceededError(err) });
     }
   });
@@ -135,6 +212,7 @@ export async function loadCases(): Promise<{
     try {
       const stored = await readAllCasesFromIdb(db);
       if (stored.length > 0) {
+        lastSavedCases = new Map(stored.map((c) => [c.id, c]));
         return {
           cases: stored,
           migratedFromLocalStorage: false,
@@ -144,7 +222,7 @@ export async function loadCases(): Promise<{
 
       const legacyCases = readLegacyLocalStorageCases();
       if (legacyCases.length > 0) {
-        const writeResult = await writeAllCasesToIdb(db, legacyCases);
+        const writeResult = await writeCasesIncrementalToIdb(db, legacyCases);
         if (writeResult.ok) {
           try {
             localStorage.removeItem(STORAGE_KEY);
@@ -164,6 +242,7 @@ export async function loadCases(): Promise<{
         };
       }
 
+      lastSavedCases = new Map();
       return {
         cases: [createEmptyCase()],
         migratedFromLocalStorage: false,
@@ -171,8 +250,6 @@ export async function loadCases(): Promise<{
       };
     } catch {
       // fall through to localStorage fallback below
-    } finally {
-      db.close();
     }
   }
 
@@ -191,15 +268,11 @@ export async function saveCases(cases: RepairCase[]): Promise<{
 }> {
   const db = await openDb();
   if (db) {
-    try {
-      const result = await writeAllCasesToIdb(db, cases);
-      return {
-        ...result,
-        backend: "indexeddb",
-      };
-    } finally {
-      db.close();
-    }
+    const result = await writeCasesIncrementalToIdb(db, cases);
+    return {
+      ...result,
+      backend: "indexeddb",
+    };
   }
 
   try {
@@ -220,26 +293,23 @@ export async function saveCases(cases: RepairCase[]): Promise<{
 async function readMetaValue<T>(key: string, fallbackKey: string): Promise<T | null> {
   const db = await openDb();
   if (db) {
-    try {
-      const value = await new Promise<T | null>((resolve) => {
-        try {
-          const tx = db.transaction(META_STORE, "readonly");
-          const store = tx.objectStore(META_STORE);
-          const req = store.get(key);
-          req.onsuccess = () => {
-            const record = req.result as { key?: string; value?: T } | undefined;
-            resolve(record && "value" in record ? (record.value ?? null) : null);
-          };
-          req.onerror = () => resolve(null);
-        } catch {
-          resolve(null);
-        }
-      });
-      if (value !== null) {
-        return value;
+    const value = await new Promise<T | null>((resolve) => {
+      try {
+        const tx = db.transaction(META_STORE, "readonly");
+        const store = tx.objectStore(META_STORE);
+        const req = store.get(key);
+        req.onsuccess = () => {
+          const record = req.result as { key?: string; value?: T } | undefined;
+          resolve(record && "value" in record ? (record.value ?? null) : null);
+        };
+        req.onerror = () => resolve(null);
+      } catch {
+        dbPromise = null;
+        resolve(null);
       }
-    } finally {
-      db.close();
+    });
+    if (value !== null) {
+      return value;
     }
   }
 
@@ -260,23 +330,20 @@ async function writeMetaValue<T>(
 ): Promise<boolean> {
   const db = await openDb();
   if (db) {
-    try {
-      const ok = await new Promise<boolean>((resolve) => {
-        try {
-          const tx = db.transaction(META_STORE, "readwrite");
-          const store = tx.objectStore(META_STORE);
-          store.put({ key, value });
-          tx.oncomplete = () => resolve(true);
-          tx.onerror = () => resolve(false);
-          tx.onabort = () => resolve(false);
-        } catch {
-          resolve(false);
-        }
-      });
-      if (ok) return true;
-    } finally {
-      db.close();
-    }
+    const ok = await new Promise<boolean>((resolve) => {
+      try {
+        const tx = db.transaction(META_STORE, "readwrite");
+        const store = tx.objectStore(META_STORE);
+        store.put({ key, value });
+        tx.oncomplete = () => resolve(true);
+        tx.onerror = () => resolve(false);
+        tx.onabort = () => resolve(false);
+      } catch {
+        dbPromise = null;
+        resolve(false);
+      }
+    });
+    if (ok) return true;
   }
 
   try {

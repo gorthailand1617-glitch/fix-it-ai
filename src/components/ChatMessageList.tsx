@@ -73,7 +73,7 @@ function getMessageAttachments(msg: ChatMessage): FileAttachment[] {
   return [];
 }
 
-export default function ChatMessageList({
+function ChatMessageList({
   messages,
   isLoading,
   loadingProgress,
@@ -262,3 +262,5 @@ export default function ChatMessageList({
     </>
   );
 }
+
+export default React.memo(ChatMessageList);

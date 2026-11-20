@@ -12,12 +12,19 @@ import {
   compactUserHistoryText,
 } from "@/lib/history-compact";
 import {
+  classifyModelFailureReason,
   formatFriendlyApiError,
   isHighDemandError,
   isQuotaExhaustedError,
   isRetryableModelError,
   isSchemaWithSearchError,
+  isTimeoutError,
 } from "@/lib/gemini-errors";
+import {
+  markModelHealthy,
+  markModelUnhealthy,
+  prioritizeHealthyModels,
+} from "@/lib/model-health";
 import {
   ALLOWED_MODEL_PROFILES,
   getModelDisplayName,
@@ -44,7 +51,12 @@ const MAX_ATTACHMENTS = 6;
 const MAX_SINGLE_FILE_BYTES = 10 * 1024 * 1024;
 const MAX_TOTAL_FILES_BYTES = 15 * 1024 * 1024;
 const DEFAULT_RATE_LIMIT_PER_MIN = 30;
-const HIGH_DEMAND_RETRY_DELAY_MS = 1200;
+const HIGH_DEMAND_RETRY_DELAY_MS = 800;
+const REQUEST_DEADLINE_MS = 50_000;
+const FALLBACK_TTFT_TIMEOUT_BEGINNER_MS = 12_000;
+const FALLBACK_TTFT_TIMEOUT_TECHNICIAN_MS = 18_000;
+const FALLBACK_ATTEMPT_TIMEOUT_MS = 28_000;
+const MIN_REMAINING_FOR_ATTEMPT_MS = 3_000;
 const ALLOWED_KINDS = new Set<AttachmentKind>([
   "image",
   "pdf",
@@ -118,17 +130,111 @@ function resolveThinkingLevel(mode: ExplanationMode): ThinkingLevel {
   return mode === "technician" ? ThinkingLevel.MEDIUM : ThinkingLevel.LOW;
 }
 
+function resolveTimeoutMs(
+  envValue: string | undefined,
+  fallbackMs: number
+): number {
+  if (!envValue || envValue.trim() === "") return fallbackMs;
+  const parsed = Number(envValue);
+  if (!Number.isFinite(parsed) || parsed < 1000) return fallbackMs;
+  return Math.floor(parsed);
+}
+
+function getRequestDeadlineMs(): number {
+  return resolveTimeoutMs(
+    process.env.GEMINI_REQUEST_TIMEOUT_MS,
+    REQUEST_DEADLINE_MS
+  );
+}
+
+function getFallbackTtftTimeoutMs(mode: ExplanationMode): number {
+  const defaultMs =
+    mode === "technician"
+      ? FALLBACK_TTFT_TIMEOUT_TECHNICIAN_MS
+      : FALLBACK_TTFT_TIMEOUT_BEGINNER_MS;
+  return resolveTimeoutMs(process.env.GEMINI_MODEL_TTFT_TIMEOUT_MS, defaultMs);
+}
+
+function createAttemptSignal(params: {
+  parentSignal: AbortSignal;
+  attemptTimeoutMs: number;
+  ttftTimeoutMs?: number;
+}) {
+  const { parentSignal, attemptTimeoutMs, ttftTimeoutMs } = params;
+  const controller = new AbortController();
+  let timedOutReason: "ttft" | "attempt" | null = null;
+
+  const onParentAbort = () => {
+    controller.abort();
+  };
+
+  if (parentSignal.aborted) {
+    controller.abort();
+  } else {
+    parentSignal.addEventListener("abort", onParentAbort, { once: true });
+  }
+
+  const attemptTimer = setTimeout(() => {
+    timedOutReason = "attempt";
+    controller.abort();
+  }, Math.max(1, attemptTimeoutMs));
+
+  let ttftTimer: ReturnType<typeof setTimeout> | null = null;
+  if (ttftTimeoutMs && ttftTimeoutMs > 0) {
+    ttftTimer = setTimeout(() => {
+      timedOutReason = "ttft";
+      controller.abort();
+    }, Math.max(1, ttftTimeoutMs));
+  }
+
+  return {
+    signal: controller.signal,
+    isTimedOut: () => timedOutReason !== null && !parentSignal.aborted,
+    timedOutReason: () => timedOutReason,
+    markFirstToken: () => {
+      if (ttftTimer) {
+        clearTimeout(ttftTimer);
+        ttftTimer = null;
+      }
+    },
+    clear: () => {
+      clearTimeout(attemptTimer);
+      if (ttftTimer) {
+        clearTimeout(ttftTimer);
+        ttftTimer = null;
+      }
+      parentSignal.removeEventListener("abort", onParentAbort);
+    },
+  };
+}
+
 async function executeModelWithTransientRetry<T>(params: {
   model: string;
   useGoogleSearch: boolean;
   signal: AbortSignal;
+  allowHighDemandRetry: boolean;
+  attemptTimeoutMs: number;
+  ttftTimeoutMs?: number;
+  getRemainingMs: () => number;
   onHighDemandRetry?: () => void;
   invoke: (options: {
     useSchema: boolean;
     useThinking: boolean;
+    attemptSignal: AbortSignal;
+    markFirstToken: () => void;
   }) => Promise<T | null>;
 }): Promise<{ value: T } | { retryableError: unknown }> {
-  const { model, useGoogleSearch, signal, onHighDemandRetry, invoke } = params;
+  const {
+    model,
+    useGoogleSearch,
+    signal,
+    allowHighDemandRetry,
+    attemptTimeoutMs,
+    ttftTimeoutMs,
+    getRemainingMs,
+    onHighDemandRetry,
+    invoke,
+  } = params;
   let highDemandRetried = false;
 
   while (!signal.aborted) {
@@ -138,10 +244,47 @@ async function executeModelWithTransientRetry<T>(params: {
       let result: T | null = null;
 
       while (!signal.aborted) {
+        const remainingForAttempt = getRemainingMs();
+        if (remainingForAttempt < MIN_REMAINING_FOR_ATTEMPT_MS) {
+          return {
+            retryableError: new Error(
+              `Request deadline reached before invoking ${model} (timeout)`
+            ),
+          };
+        }
+
+        const effectiveAttemptMs = Math.min(attemptTimeoutMs, remainingForAttempt);
+        const effectiveTtftMs = ttftTimeoutMs
+          ? Math.min(ttftTimeoutMs, effectiveAttemptMs)
+          : undefined;
+        const attempt = createAttemptSignal({
+          parentSignal: signal,
+          attemptTimeoutMs: effectiveAttemptMs,
+          ttftTimeoutMs: effectiveTtftMs,
+        });
+
         try {
-          result = await invoke({ useSchema, useThinking });
+          result = await invoke({
+            useSchema,
+            useThinking,
+            attemptSignal: attempt.signal,
+            markFirstToken: attempt.markFirstToken,
+          });
+          if (attempt.isTimedOut()) {
+            throw new Error(
+              `Model ${model} timed out (${attempt.timedOutReason()})`
+            );
+          }
           break;
         } catch (err) {
+          if (signal.aborted) {
+            throw err;
+          }
+          if (attempt.isTimedOut()) {
+            throw new Error(
+              `Model ${model} timed out (${attempt.timedOutReason()})`
+            );
+          }
           const msg = err instanceof Error ? err.message : String(err);
           const lower = msg.toLowerCase();
           if (useGoogleSearch && useSchema && isSchemaWithSearchError(msg)) {
@@ -157,6 +300,8 @@ async function executeModelWithTransientRetry<T>(params: {
             continue;
           }
           throw err;
+        } finally {
+          attempt.clear();
         }
       }
 
@@ -170,7 +315,12 @@ async function executeModelWithTransientRetry<T>(params: {
       }
       const msg = err instanceof Error ? err.message : String(err);
 
-      if (isHighDemandError(msg) && !highDemandRetried) {
+      if (
+        allowHighDemandRetry &&
+        isHighDemandError(msg) &&
+        !highDemandRetried &&
+        getRemainingMs() > HIGH_DEMAND_RETRY_DELAY_MS + MIN_REMAINING_FOR_ATTEMPT_MS
+      ) {
         highDemandRetried = true;
         onHighDemandRetry?.();
         await waitWithAbort(HIGH_DEMAND_RETRY_DELAY_MS, signal);
@@ -416,9 +566,12 @@ export async function POST(req: NextRequest) {
         : "";
     const systemInstruction = buildSystemPrompt(mode);
     const wantsStream = rawBody.stream === true;
-    const candidateModels = resolveCandidateModels({
+    const baseCandidateModels = resolveCandidateModels({
       requestedProfile: modelProfile,
       envModels: process.env.GEMINI_MODELS,
+    });
+    const candidateModels = prioritizeHealthyModels(baseCandidateModels, {
+      pinFirst: modelProfile !== "auto",
     });
 
     const imageDataUrl: string | undefined =
@@ -619,6 +772,11 @@ export async function POST(req: NextRequest) {
             });
 
             const useGoogleSearch = process.env.ENABLE_GOOGLE_SEARCH === "true";
+            const requestDeadlineMs = getRequestDeadlineMs();
+            const fallbackTtftMs = getFallbackTtftTimeoutMs(mode);
+            const requestStartMs = Date.now();
+            const getRemainingMs = () =>
+              requestDeadlineMs - (Date.now() - requestStartMs);
 
             let rawText = "";
             let modelUsed: string | undefined;
@@ -626,12 +784,18 @@ export async function POST(req: NextRequest) {
 
             const runModelStream = async (
               model: string,
-              options: { useSchema: boolean; useThinking: boolean }
+              options: {
+                useSchema: boolean;
+                useThinking: boolean;
+                attemptSignal: AbortSignal;
+                markFirstToken: () => void;
+              }
             ) => {
               rawText = "";
               let lastHeadline: string | undefined;
               let lastRiskLevel: RiskLevel | undefined;
               let lastStage = "";
+              let firstTokenSeen = false;
 
               const responseStream = await ai.models.generateContentStream({
                 model,
@@ -643,40 +807,49 @@ export async function POST(req: NextRequest) {
                   useGoogleSearch,
                   useSchema: options.useSchema,
                   useThinking: options.useThinking,
-                  abortSignal: req.signal,
+                  abortSignal: options.attemptSignal,
                 }),
               });
 
               for await (const chunk of responseStream) {
-                if (req.signal.aborted) break;
+                if (options.attemptSignal.aborted) break;
                 const chunkText = chunk.text || "";
                 if (!chunkText) continue;
 
-                rawText += chunkText;
-
-                const preview = extractPartialPreview(rawText);
-                if (
-                  (preview.headline && preview.headline !== lastHeadline) ||
-                  (preview.riskLevel && preview.riskLevel !== lastRiskLevel)
-                ) {
-                  lastHeadline = preview.headline ?? lastHeadline;
-                  lastRiskLevel = preview.riskLevel ?? lastRiskLevel;
-                  emit({
-                    type: "preview",
-                    headline: lastHeadline,
-                    riskLevel: lastRiskLevel,
-                  });
+                if (!firstTokenSeen) {
+                  firstTokenSeen = true;
+                  options.markFirstToken();
                 }
 
-                const stageInfo = detectStreamStage(rawText);
-                if (stageInfo && stageInfo.stage !== lastStage) {
-                  lastStage = stageInfo.stage;
-                  emit({
-                    type: "status",
-                    stage: stageInfo.stage,
-                    message: stageInfo.message,
-                    model,
-                  });
+                rawText += chunkText;
+
+                if (!lastHeadline || !lastRiskLevel) {
+                  const preview = extractPartialPreview(rawText);
+                  if (
+                    (preview.headline && preview.headline !== lastHeadline) ||
+                    (preview.riskLevel && preview.riskLevel !== lastRiskLevel)
+                  ) {
+                    lastHeadline = preview.headline ?? lastHeadline;
+                    lastRiskLevel = preview.riskLevel ?? lastRiskLevel;
+                    emit({
+                      type: "preview",
+                      headline: lastHeadline,
+                      riskLevel: lastRiskLevel,
+                    });
+                  }
+                }
+
+                if (lastStage !== "parts") {
+                  const stageInfo = detectStreamStage(rawText);
+                  if (stageInfo && stageInfo.stage !== lastStage) {
+                    lastStage = stageInfo.stage;
+                    emit({
+                      type: "status",
+                      stage: stageInfo.stage,
+                      message: stageInfo.message,
+                      model,
+                    });
+                  }
                 }
               }
             };
@@ -686,8 +859,23 @@ export async function POST(req: NextRequest) {
                 closeStream();
                 return;
               }
+              const remainingMs = getRemainingMs();
+              if (remainingMs < MIN_REMAINING_FOR_ATTEMPT_MS) {
+                lastError ??= new Error("504 Request deadline exceeded (timeout)");
+                break;
+              }
+
               const model = candidateModels[i];
               const displayName = getModelDisplayName(model);
+              const hasFallback = i < candidateModels.length - 1;
+              const attemptTimeoutMs = hasFallback
+                ? Math.min(FALLBACK_ATTEMPT_TIMEOUT_MS, remainingMs)
+                : remainingMs;
+              const ttftTimeoutMs = hasFallback
+                ? Math.min(fallbackTtftMs, attemptTimeoutMs)
+                : undefined;
+              const allowHighDemandRetry = !hasFallback && remainingMs > 6_000;
+
               emit({
                 type: "status",
                 stage: i === 0 ? "analyzing" : "fallback",
@@ -702,6 +890,10 @@ export async function POST(req: NextRequest) {
                 model,
                 useGoogleSearch,
                 signal: req.signal,
+                allowHighDemandRetry,
+                attemptTimeoutMs,
+                ttftTimeoutMs,
+                getRemainingMs,
                 onHighDemandRetry: () => {
                   emit({
                     type: "status",
@@ -722,14 +914,21 @@ export async function POST(req: NextRequest) {
               }
 
               if ("value" in attempt) {
+                markModelHealthy(model);
                 modelUsed = model;
                 break;
               }
 
               lastError = attempt.retryableError;
+              const errMsg =
+                lastError instanceof Error ? lastError.message : String(lastError);
+              const failureReason = classifyModelFailureReason(errMsg);
+              if (failureReason) {
+                markModelUnhealthy(model, failureReason);
+              }
               rawText = "";
               console.warn(
-                `Model ${model} unavailable/quota exceeded, trying next fallback...`
+                `Model ${model} unavailable/quota/timeout, trying next fallback...`
               );
             }
 
@@ -831,16 +1030,39 @@ export async function POST(req: NextRequest) {
     });
 
     const useGoogleSearch = process.env.ENABLE_GOOGLE_SEARCH === "true";
+    const requestDeadlineMs = getRequestDeadlineMs();
+    const requestStartMs = Date.now();
+    const getRemainingMs = () =>
+      requestDeadlineMs - (Date.now() - requestStartMs);
 
     let rawText: string | undefined;
     let modelUsed: string | undefined;
     let lastError: unknown;
 
-    for (const model of candidateModels) {
+    for (let i = 0; i < candidateModels.length; i++) {
+      if (req.signal.aborted) {
+        break;
+      }
+      const remainingMs = getRemainingMs();
+      if (remainingMs < MIN_REMAINING_FOR_ATTEMPT_MS) {
+        lastError ??= new Error("504 Request deadline exceeded (timeout)");
+        break;
+      }
+
+      const model = candidateModels[i];
+      const hasFallback = i < candidateModels.length - 1;
+      const attemptTimeoutMs = hasFallback
+        ? Math.min(FALLBACK_ATTEMPT_TIMEOUT_MS, remainingMs)
+        : remainingMs;
+      const allowHighDemandRetry = !hasFallback && remainingMs > 6_000;
+
       const attempt = await executeModelWithTransientRetry({
         model,
         useGoogleSearch,
         signal: req.signal,
+        allowHighDemandRetry,
+        attemptTimeoutMs,
+        getRemainingMs,
         invoke: async (options) => {
           const response = await ai.models.generateContent({
             model,
@@ -852,7 +1074,7 @@ export async function POST(req: NextRequest) {
               useGoogleSearch,
               useSchema: options.useSchema,
               useThinking: options.useThinking,
-              abortSignal: req.signal,
+              abortSignal: options.attemptSignal,
             }),
           });
           return response.text || null;
@@ -860,14 +1082,21 @@ export async function POST(req: NextRequest) {
       });
 
       if ("value" in attempt) {
+        markModelHealthy(model);
         rawText = attempt.value;
         modelUsed = model;
         break;
       }
 
       lastError = attempt.retryableError;
+      const errMsg =
+        lastError instanceof Error ? lastError.message : String(lastError);
+      const failureReason = classifyModelFailureReason(errMsg);
+      if (failureReason) {
+        markModelUnhealthy(model, failureReason);
+      }
       console.warn(
-        `Model ${model} unavailable/quota exceeded, trying next fallback...`
+        `Model ${model} unavailable/quota/timeout, trying next fallback...`
       );
     }
 
@@ -899,6 +1128,8 @@ export async function POST(req: NextRequest) {
       ? 503
       : isQuotaExhaustedError(rawMsg)
       ? 429
+      : isTimeoutError(rawMsg)
+      ? 504
       : 500;
     return NextResponse.json(
       {

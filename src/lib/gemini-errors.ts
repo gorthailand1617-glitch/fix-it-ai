@@ -1,3 +1,16 @@
+import type { ModelFailureReason } from "@/lib/model-health";
+import type { DiagnoseStreamEvent } from "@/types/repair";
+
+const STREAM_PARSE_ERROR_MESSAGE =
+  "การเชื่อมต่อกับเซิร์ฟเวอร์ขัดข้องหรือหมดเวลาระหว่างวิเคราะห์ กรุณากด 'ลองวิเคราะห์ใหม่' ครับ";
+
+const VALID_STREAM_EVENT_TYPES = new Set([
+  "status",
+  "preview",
+  "result",
+  "error",
+]);
+
 function extractErrorMessage(err: unknown): string {
   if (typeof err === "string") return err;
   if (err instanceof Error) return err.message;
@@ -22,18 +35,72 @@ export function isQuotaExhaustedError(message: string): boolean {
   return lower.includes("429") || lower.includes("resource_exhausted");
 }
 
+export function isTimeoutError(message: string): boolean {
+  const lower = message.toLowerCase();
+  return (
+    lower.includes("504") ||
+    lower.includes("deadline_exceeded") ||
+    lower.includes("timed out") ||
+    lower.includes("timeout") ||
+    lower.includes("etimedout")
+  );
+}
+
+export function isNotFoundError(message: string): boolean {
+  const lower = message.toLowerCase();
+  return lower.includes("404") || lower.includes("not_found");
+}
+
 export function isRetryableModelError(message: string): boolean {
   const lower = message.toLowerCase();
   return (
     isQuotaExhaustedError(lower) ||
     isHighDemandError(lower) ||
-    lower.includes("404") ||
-    lower.includes("not_found") ||
+    isTimeoutError(lower) ||
+    isNotFoundError(lower) ||
     lower.includes("500") ||
-    lower.includes("internal") ||
-    lower.includes("504") ||
-    lower.includes("deadline_exceeded")
+    lower.includes("internal")
   );
+}
+
+export function classifyModelFailureReason(
+  message: string
+): ModelFailureReason | null {
+  if (isQuotaExhaustedError(message)) return "quota";
+  if (isHighDemandError(message)) return "high_demand";
+  if (isTimeoutError(message)) return "timeout";
+  if (isNotFoundError(message)) return "not_found";
+  return null;
+}
+
+/**
+ * Safely parses a single NDJSON stream event line from `/api/diagnose`,
+ * replacing raw JSON/HTML proxy failure syntax errors with a clear Thai error message.
+ */
+export function parseDiagnoseStreamLine(
+  line: string
+): DiagnoseStreamEvent | null {
+  const trimmed = line.trim();
+  if (!trimmed) return null;
+
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(trimmed);
+  } catch {
+    throw new Error(STREAM_PARSE_ERROR_MESSAGE);
+  }
+
+  if (
+    typeof parsed !== "object" ||
+    parsed === null ||
+    Array.isArray(parsed) ||
+    typeof (parsed as { type?: unknown }).type !== "string" ||
+    !VALID_STREAM_EVENT_TYPES.has((parsed as { type: string }).type)
+  ) {
+    throw new Error(STREAM_PARSE_ERROR_MESSAGE);
+  }
+
+  return parsed as DiagnoseStreamEvent;
 }
 
 export function isSchemaWithSearchError(message: string): boolean {
@@ -89,12 +156,7 @@ export function formatFriendlyApiError(err: unknown): string {
     return "ไม่สามารถยืนยันตัวตน Gemini API Key ได้ กรุณาตรวจสอบค่า GEMINI_API_KEY ในไฟล์ .env.local";
   }
 
-  if (
-    lower.includes("504") ||
-    lower.includes("deadline_exceeded") ||
-    lower.includes("timed out") ||
-    lower.includes("timeout")
-  ) {
+  if (isTimeoutError(lower)) {
     return "การวิเคราะห์ใช้เวลานานเกินกำหนด กรุณากด 'ลองวิเคราะห์ใหม่' อีกครั้งครับ";
   }
 

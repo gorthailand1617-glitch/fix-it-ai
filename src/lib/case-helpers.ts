@@ -22,14 +22,23 @@ export function nowTimestamp(): number {
   return Date.now();
 }
 
-export function formatCaseDate(timestamp: number): string {
-  try {
-    return new Intl.DateTimeFormat("th-TH", {
+let caseDateFormatter: Intl.DateTimeFormat | null = null;
+
+function getCaseDateFormatter(): Intl.DateTimeFormat {
+  if (!caseDateFormatter) {
+    caseDateFormatter = new Intl.DateTimeFormat("th-TH", {
       day: "numeric",
       month: "short",
       hour: "2-digit",
       minute: "2-digit",
-    }).format(new Date(timestamp));
+    });
+  }
+  return caseDateFormatter;
+}
+
+export function formatCaseDate(timestamp: number): string {
+  try {
+    return getCaseDateFormatter().format(new Date(timestamp));
   } catch {
     return "";
   }

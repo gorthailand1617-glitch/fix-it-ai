@@ -27,6 +27,7 @@ import {
   nowTimestamp,
 } from "@/lib/case-helpers";
 import { CASE_STATUS_META } from "@/lib/categories";
+import { parseDiagnoseStreamLine } from "@/lib/gemini-errors";
 import { compressImageFile, readFileAsDataUrl } from "@/lib/image-compress";
 import { GEMINI_MODEL_OPTIONS } from "@/lib/models";
 import {
@@ -106,6 +107,16 @@ export default function FixItWorkspace() {
   const [isDraggingFiles, setIsDraggingFiles] = useState(false);
 
   const hasLoadedRef = useRef(false);
+  const skipNextSaveRef = useRef(false);
+  const latestCasesRef = useRef<RepairCase[]>([]);
+  const pendingSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(
+    null
+  );
+  const activeCaseIdRef = useRef("");
+  const sendMessageRef = useRef<
+    (overrideText?: string, overrideCategory?: RepairCategory) => void
+  >(() => {});
+  const retryMessageRef = useRef<(errorMessageId: string) => void>(() => {});
   const quotaWarnedRef = useRef(false);
   const abortControllerRef = useRef<AbortController | null>(null);
   const dragCounterRef = useRef(0);
@@ -126,6 +137,23 @@ export default function FixItWorkspace() {
     []
   );
 
+  const flushCasesSave = useCallback(() => {
+    if (!hasLoadedRef.current || latestCasesRef.current.length === 0) return;
+    if (pendingSaveTimerRef.current) {
+      clearTimeout(pendingSaveTimerRef.current);
+      pendingSaveTimerRef.current = null;
+    }
+    saveCases(latestCasesRef.current).then((result) => {
+      if (result.quotaExceeded && !quotaWarnedRef.current) {
+        quotaWarnedRef.current = true;
+        addToast(
+          "warning",
+          "พื้นที่เก็บข้อมูลในเบราว์เซอร์เต็ม เคสใหม่ที่มีไฟล์ขนาดใหญ่อาจไม่ถูกบันทึก แนะนำให้ลบเคสเก่าที่ไม่ใช้แล้วครับ"
+        );
+      }
+    });
+  }, [addToast]);
+
   // Abort any in-flight diagnostic request on unmount
   useEffect(() => {
     return () => {
@@ -144,6 +172,8 @@ export default function FixItWorkspace() {
     ]).then(([caseResult, loadedAssets, loadedMode, loadedModelProfile]) => {
       if (cancelled) return;
       hasLoadedRef.current = true;
+      skipNextSaveRef.current = true;
+      latestCasesRef.current = caseResult.cases;
       setCases(caseResult.cases);
       setAssets(loadedAssets);
       setExplanationMode(loadedMode);
@@ -163,24 +193,56 @@ export default function FixItWorkspace() {
     };
   }, [addToast]);
 
-  // Persist cases only after initial hydration completes
+  // Debounce persisting cases after initial hydration completes
   useEffect(() => {
+    latestCasesRef.current = cases;
     if (!hasLoadedRef.current || cases.length === 0) return;
-    let cancelled = false;
-    saveCases(cases).then((result) => {
-      if (cancelled) return;
-      if (result.quotaExceeded && !quotaWarnedRef.current) {
-        quotaWarnedRef.current = true;
-        addToast(
-          "warning",
-          "พื้นที่เก็บข้อมูลในเบราว์เซอร์เต็ม เคสใหม่ที่มีไฟล์ขนาดใหญ่อาจไม่ถูกบันทึก แนะนำให้ลบเคสเก่าที่ไม่ใช้แล้วครับ"
-        );
-      }
-    });
+    if (skipNextSaveRef.current) {
+      skipNextSaveRef.current = false;
+      return;
+    }
+
+    if (pendingSaveTimerRef.current) {
+      clearTimeout(pendingSaveTimerRef.current);
+    }
+    pendingSaveTimerRef.current = setTimeout(() => {
+      pendingSaveTimerRef.current = null;
+      flushCasesSave();
+    }, 250);
+
     return () => {
-      cancelled = true;
+      if (pendingSaveTimerRef.current) {
+        clearTimeout(pendingSaveTimerRef.current);
+        pendingSaveTimerRef.current = null;
+      }
     };
-  }, [cases, addToast]);
+  }, [cases, flushCasesSave]);
+
+  // Flush any pending debounced save on tab hide, pagehide, or unmount
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (
+        document.visibilityState === "hidden" &&
+        pendingSaveTimerRef.current
+      ) {
+        flushCasesSave();
+      }
+    };
+    const handlePageHide = () => {
+      if (pendingSaveTimerRef.current) {
+        flushCasesSave();
+      }
+    };
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    window.addEventListener("pagehide", handlePageHide);
+    return () => {
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+      window.removeEventListener("pagehide", handlePageHide);
+      if (pendingSaveTimerRef.current) {
+        flushCasesSave();
+      }
+    };
+  }, [flushCasesSave]);
 
   // Persist assets after initial hydration completes
   useEffect(() => {
@@ -189,14 +251,33 @@ export default function FixItWorkspace() {
   }, [assets]);
 
   const activeCase = cases.find((c) => c.id === activeCaseId) || cases[0];
+  const resolvedActiveCaseId = activeCase?.id || "";
 
-  const handleNewCase = (category: RepairCategory = "automotive") => {
+  useEffect(() => {
+    activeCaseIdRef.current = resolvedActiveCaseId;
+  }, [resolvedActiveCaseId]);
+
+  const handleCloseSidebar = useCallback(() => {
+    setSidebarOpen(false);
+  }, []);
+
+  const handleOpenGarage = useCallback(() => {
+    setSidebarOpen(false);
+    setShowGarageModal(true);
+  }, []);
+
+  const handleSelectCase = useCallback((id: string) => {
+    setActiveCaseId(id);
+    setSidebarOpen(false);
+  }, []);
+
+  const handleNewCase = useCallback((category: RepairCategory = "automotive") => {
     const newCase = createEmptyCase(category);
     setCases((prev) => [newCase, ...prev]);
     setActiveCaseId(newCase.id);
     setWizardDismissedForMsgId(null);
     setSidebarOpen(false);
-  };
+  }, []);
 
   const handleSaveAsset = (asset: EquipmentAsset) => {
     setAssets((prev) => {
@@ -240,7 +321,7 @@ export default function FixItWorkspace() {
     saveModelProfile(nextProfile);
   };
 
-  const handleDeleteCase = (id: string, e: React.MouseEvent) => {
+  const handleDeleteCase = useCallback((id: string, e: React.MouseEvent) => {
     e.stopPropagation();
     setCases((prev) => {
       const filtered = prev.filter((c) => c.id !== id);
@@ -249,14 +330,14 @@ export default function FixItWorkspace() {
         setActiveCaseId(fresh.id);
         return [fresh];
       }
-      if (activeCaseId === id) {
+      if (activeCaseIdRef.current === id) {
         setActiveCaseId(filtered[0].id);
       }
       return filtered;
     });
-  };
+  }, []);
 
-  const handleRenameCase = (id: string, newTitle: string) => {
+  const handleRenameCase = useCallback((id: string, newTitle: string) => {
     const trimmed = newTitle.trim();
     if (!trimmed) return;
     const ts = nowTimestamp();
@@ -265,7 +346,7 @@ export default function FixItWorkspace() {
         c.id === id ? { ...c, title: trimmed, updatedAt: ts } : c
       )
     );
-  };
+  }, []);
 
   const handleChangeCaseStatus = (status: CaseStatus) => {
     if (!activeCase) return;
@@ -277,33 +358,35 @@ export default function FixItWorkspace() {
     );
   };
 
-  const handleToggleStep = (stepKey: string) => {
-    if (!activeCase) return;
+  const handleToggleStep = useCallback((stepKey: string) => {
+    const targetId = activeCaseIdRef.current;
+    if (!targetId) return;
     const ts = nowTimestamp();
     setCases((prev) =>
       prev.map((c) => {
-        if (c.id !== activeCase.id) return c;
+        if (c.id !== targetId) return c;
         const nextSteps = { ...(c.completedSteps || {}) };
         nextSteps[stepKey] = !nextSteps[stepKey];
         return { ...c, completedSteps: nextSteps, updatedAt: ts };
       })
     );
-  };
+  }, []);
 
-  const handleToggleSafetyAck = (messageId: string) => {
-    if (!activeCase) return;
+  const handleToggleSafetyAck = useCallback((messageId: string) => {
+    const targetId = activeCaseIdRef.current;
+    if (!targetId) return;
     const ts = nowTimestamp();
     setCases((prev) =>
       prev.map((c) => {
-        if (c.id !== activeCase.id) return c;
+        if (c.id !== targetId) return c;
         const nextAck = { ...(c.acknowledgedSafety || {}) };
         nextAck[messageId] = !nextAck[messageId];
         return { ...c, acknowledgedSafety: nextAck, updatedAt: ts };
       })
     );
-  };
+  }, []);
 
-  const handleQuickReply = (prefix: string) => {
+  const handleQuickReply = useCallback((prefix: string) => {
     setInput(prefix);
     requestAnimationFrame(() => {
       const el = textareaRef.current;
@@ -312,7 +395,15 @@ export default function FixItWorkspace() {
         el.setSelectionRange(prefix.length, prefix.length);
       }
     });
-  };
+  }, []);
+
+  const stableOnQuickSend = useCallback((msg: string) => {
+    sendMessageRef.current(msg);
+  }, []);
+
+  const stableOnRetryMessage = useCallback((errorMessageId: string) => {
+    retryMessageRef.current(errorMessageId);
+  }, []);
 
   const processFiles = async (files: FileList | File[]) => {
     const fileArray = Array.from(files);
@@ -473,12 +564,37 @@ export default function FixItWorkspace() {
 
       const contentType = res.headers.get("content-type") || "";
       if (!res.ok) {
-        const errData = await res.json().catch(() => ({}));
-        throw new Error(
-          typeof errData.error === "string"
-            ? errData.error
-            : "ไม่สามารถเชื่อมต่อ AI ได้"
-        );
+        const rawErrText = await res.text().catch(() => "");
+        let parsedErrMessage = "";
+        if (rawErrText.trim()) {
+          try {
+            const errData = JSON.parse(rawErrText) as { error?: unknown };
+            if (typeof errData?.error === "string" && errData.error.trim()) {
+              parsedErrMessage = errData.error.trim();
+            }
+          } catch {
+            // non-JSON proxy/host error body (e.g. HTML or "An error occurred...")
+          }
+        }
+        if (parsedErrMessage) {
+          throw new Error(parsedErrMessage);
+        }
+        if (res.status === 504 || res.status === 524) {
+          throw new Error(
+            "เซิร์ฟเวอร์ใช้เวลานานเกินกำหนด (Timeout) กรุณากด 'ลองวิเคราะห์ใหม่' ครับ"
+          );
+        }
+        if (res.status === 413) {
+          throw new Error(
+            "ขนาดข้อมูลหรือไฟล์แนบใหญ่เกินกำหนด กรุณาลดขนาดหรือจำนวนไฟล์แล้วลองใหม่ครับ"
+          );
+        }
+        if (res.status === 502 || res.status === 503) {
+          throw new Error(
+            "เซิร์ฟเวอร์ไม่ว่างชั่วคราว กรุณารอสักครู่แล้วกด 'ลองวิเคราะห์ใหม่' ครับ"
+          );
+        }
+        throw new Error("ไม่สามารถเชื่อมต่อ AI ได้ในขณะนี้ กรุณาลองใหม่อีกครั้งครับ");
       }
 
       if (contentType.includes("application/x-ndjson") && res.body) {
@@ -535,24 +651,42 @@ export default function FixItWorkspace() {
           buffer = lines.pop() ?? "";
 
           for (const line of lines) {
-            const trimmed = line.trim();
-            if (!trimmed) continue;
-            const event = JSON.parse(trimmed) as DiagnoseStreamEvent;
-            handleEvent(event);
+            const event = parseDiagnoseStreamLine(line);
+            if (event) {
+              handleEvent(event);
+            }
           }
         }
 
-        const trailing = buffer.trim();
-        if (trailing) {
-          const event = JSON.parse(trailing) as DiagnoseStreamEvent;
-          handleEvent(event);
+        const trailingEvent = parseDiagnoseStreamLine(buffer);
+        if (trailingEvent) {
+          handleEvent(trailingEvent);
         }
 
         if (!receivedResult && !controller.signal.aborted) {
-          throw new Error("ไม่ได้รับผลลัพธ์การวิเคราะห์จากเซิร์ฟเวอร์");
+          throw new Error(
+            "ไม่ได้รับผลลัพธ์การวิเคราะห์จากเซิร์ฟเวอร์ (อาจหมดเวลาเชื่อมต่อ) กรุณากด 'ลองวิเคราะห์ใหม่' ครับ"
+          );
         }
       } else {
-        const data = await res.json();
+        const rawBodyText = await res.text();
+        let data: {
+          diagnostic?: Parameters<typeof createAssistantMessage>[0];
+          isDemo?: unknown;
+          modelUsed?: unknown;
+        };
+        try {
+          data = JSON.parse(rawBodyText) as typeof data;
+        } catch {
+          throw new Error(
+            "การเชื่อมต่อกับเซิร์ฟเวอร์ขัดข้องหรือหมดเวลาระหว่างวิเคราะห์ กรุณากด 'ลองวิเคราะห์ใหม่' ครับ"
+          );
+        }
+        if (!data || !data.diagnostic) {
+          throw new Error(
+            "การเชื่อมต่อกับเซิร์ฟเวอร์ขัดข้องหรือหมดเวลาระหว่างวิเคราะห์ กรุณากด 'ลองวิเคราะห์ใหม่' ครับ"
+          );
+        }
         const assistantMsg = createAssistantMessage(
           data.diagnostic,
           Boolean(data.isDemo),
@@ -728,6 +862,11 @@ export default function FixItWorkspace() {
     });
   };
 
+  useEffect(() => {
+    sendMessageRef.current = sendMessage;
+    retryMessageRef.current = handleRetryMessage;
+  });
+
   const handleDragEnter = (e: React.DragEvent<HTMLDivElement>) => {
     if (!e.dataTransfer.types.includes("Files")) return;
     e.preventDefault();
@@ -792,16 +931,10 @@ export default function FixItWorkspace() {
           activeCaseId={activeCase?.id || ""}
           assetCount={assets.length}
           isOpen={sidebarOpen}
-          onClose={() => setSidebarOpen(false)}
+          onClose={handleCloseSidebar}
           onNewCase={handleNewCase}
-          onOpenGarage={() => {
-            setSidebarOpen(false);
-            setShowGarageModal(true);
-          }}
-          onSelectCase={(id) => {
-            setActiveCaseId(id);
-            setSidebarOpen(false);
-          }}
+          onOpenGarage={handleOpenGarage}
+          onSelectCase={handleSelectCase}
           onDeleteCase={handleDeleteCase}
           onRenameCase={handleRenameCase}
         />
@@ -953,11 +1086,11 @@ export default function FixItWorkspace() {
                   completedSteps={activeCase.completedSteps}
                   acknowledgedSafety={activeCase.acknowledgedSafety}
                   onCancelLoading={handleCancelRequest}
-                  onRetryMessage={handleRetryMessage}
+                  onRetryMessage={stableOnRetryMessage}
                   onToggleStep={handleToggleStep}
                   onToggleSafetyAck={handleToggleSafetyAck}
                   onQuickReply={handleQuickReply}
-                  onQuickSend={(msg) => sendMessage(msg)}
+                  onQuickSend={stableOnQuickSend}
                   onPreviewImage={setLightboxImage}
                 />
               )}

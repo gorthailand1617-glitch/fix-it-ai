@@ -86,7 +86,7 @@ const RISK_CONFIG: Record<
   },
 };
 
-export default function DiagnosticCard({
+function DiagnosticCard({
   data,
   isDemo,
   modelUsed,
@@ -730,3 +730,5 @@ export default function DiagnosticCard({
     </div>
   );
 }
+
+export default React.memo(DiagnosticCard);

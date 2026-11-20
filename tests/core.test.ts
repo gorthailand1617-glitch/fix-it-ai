@@ -10,11 +10,21 @@ import {
   compactUserHistoryText,
 } from "@/lib/history-compact";
 import {
+  classifyModelFailureReason,
   formatFriendlyApiError,
   isHighDemandError,
   isRetryableModelError,
+  isTimeoutError,
+  parseDiagnoseStreamLine,
 } from "@/lib/gemini-errors";
 import { findRelevantTechNotes } from "@/lib/knowledge-base";
+import {
+  getModelCooldown,
+  markModelHealthy,
+  markModelUnhealthy,
+  prioritizeHealthyModels,
+  resetModelHealth,
+} from "@/lib/model-health";
 import {
   getModelDisplayName,
   isGemini4Model,
@@ -379,6 +389,109 @@ describe("gemini-errors", () => {
       new Error("400 API_KEY_INVALID: API key not valid")
     );
     assert.ok(friendlyAuth.includes("GEMINI_API_KEY"));
+  });
+
+  it("classifies timeouts and safely parses NDJSON or non-JSON proxy error lines", () => {
+    assert.equal(isTimeoutError("Model gemini-4-hydrogen timed out"), true);
+    assert.equal(isRetryableModelError("Model gemini-4-hydrogen timed out"), true);
+    assert.equal(
+      classifyModelFailureReason("429 RESOURCE_EXHAUSTED"),
+      "quota"
+    );
+    assert.equal(
+      classifyModelFailureReason("503 UNAVAILABLE"),
+      "high_demand"
+    );
+    assert.equal(
+      classifyModelFailureReason("Model gemini-4-hydrogen timed out"),
+      "timeout"
+    );
+    assert.equal(classifyModelFailureReason("404 NOT_FOUND"), "not_found");
+
+    assert.equal(parseDiagnoseStreamLine("   "), null);
+
+    const parsed = parseDiagnoseStreamLine(
+      JSON.stringify({
+        type: "status",
+        stage: "analyzing",
+        message: "กำลังวิเคราะห์",
+      })
+    );
+    assert.equal(parsed?.type, "status");
+
+    assert.throws(
+      () => parseDiagnoseStreamLine("An error occurred with your deployment"),
+      (err: unknown) =>
+        err instanceof Error &&
+        !(err instanceof SyntaxError) &&
+        err.message.includes("ลองวิเคราะห์ใหม่")
+    );
+  });
+});
+
+describe("model-health", () => {
+  it("moves cooled-down models behind healthy ones, respects pinFirst, and restores on expiry/recovery", () => {
+    resetModelHealth();
+    try {
+      const models = [
+        "gemini-4-hydrogen",
+        "gemini-4-neon",
+        "gemini-3.8-flash",
+        "gemini-3.5-flash-lite",
+      ];
+      const baseTime = 1_000_000;
+
+      markModelUnhealthy("gemini-4-hydrogen", "high_demand", baseTime);
+      markModelUnhealthy("gemini-4-neon", "quota", baseTime);
+      markModelUnhealthy("gemini-3.8-flash", "timeout", baseTime);
+
+      assert.deepEqual(
+        prioritizeHealthyModels(models, { now: baseTime + 1000 }),
+        [
+          "gemini-3.5-flash-lite",
+          "gemini-3.8-flash",
+          "gemini-4-hydrogen",
+          "gemini-4-neon",
+        ]
+      );
+
+      assert.deepEqual(
+        prioritizeHealthyModels(models, { pinFirst: true, now: baseTime + 1000 }),
+        [
+          "gemini-4-hydrogen",
+          "gemini-3.5-flash-lite",
+          "gemini-3.8-flash",
+          "gemini-4-neon",
+        ]
+      );
+
+      assert.equal(
+        getModelCooldown("gemini-3.8-flash", baseTime + 61_000),
+        null
+      );
+      assert.deepEqual(
+        prioritizeHealthyModels(models, { now: baseTime + 61_000 }),
+        [
+          "gemini-3.8-flash",
+          "gemini-3.5-flash-lite",
+          "gemini-4-hydrogen",
+          "gemini-4-neon",
+        ]
+      );
+
+      markModelHealthy("gemini-4-hydrogen");
+      assert.deepEqual(
+        prioritizeHealthyModels(models, { now: baseTime + 61_000 }),
+        [
+          "gemini-4-hydrogen",
+          "gemini-3.8-flash",
+          "gemini-3.5-flash-lite",
+          "gemini-4-neon",
+        ]
+      );
+    } finally {
+      resetModelHealth();
+    }
   });
 });
 
