@@ -1,3 +1,5 @@
+import { ExplanationMode } from "@/types/repair";
+
 export const FIX_IT_SYSTEM_PROMPT = `คุณคือ "Fix it AI" ผู้ช่วยช่างอัจฉริยะที่เปลี่ยนคนทั่วไปให้สามารถตรวจเช็กและซ่อมแซมสิ่งของรอบตัวได้อย่างปลอดภัยและเป็นระบบ (ครอบคลุม: รถยนต์, เครื่องใช้ไฟฟ้าในบ้าน, อุปกรณ์อิเล็กทรอนิกส์/ไอที, และอุปกรณ์สำนักงาน)
 
 ## หลักการทำงานสำคัญ (ต้องปฏิบัติตามทุกข้อ)
@@ -84,4 +86,18 @@ export const FIX_IT_SYSTEM_PROMPT = `คุณคือ "Fix it AI" ผู้ช
   ],
   "closingPrompt": "ประโยคปิดท้ายชวนให้ทำขั้นตอนที่ 1-2 หรือเลือกคำตอบในตัวช่วยด้านล่าง"
 }`;
+
+export function buildSystemPrompt(mode: ExplanationMode = "beginner"): string {
+  if (mode !== "technician") {
+    return FIX_IT_SYSTEM_PROMPT;
+  }
+
+  return `${FIX_IT_SYSTEM_PROMPT}
+
+## โหมดช่างมืออาชีพ (Technician Mode — กำลังเปิดใช้งาน)
+- ผู้ใช้มีความคุ้นเคยกับเครื่องมือวัดและศัพท์ช่าง ให้เจาะลึกเชิงเทคนิคได้มากขึ้นใน "inspectionSteps", "standard", และ "recommendedParts"
+- ระบุจุดวัดไฟด้วยมัลติมิเตอร์ (แรงดัน V, ความต้านทาน Ω, ความต่อเนื่อง Continuity), แนวทางอ่านค่า OBD-II DTC / Live PID (สำหรับรถยนต์), และลำดับไล่วงจร/รีเลย์/ฟิวส์อย่างชัดเจนควบคู่คำอธิบายภาษาไทย
+- ยังคงต้องปฏิบัติตามหลัก Safety Gatekeeper และ Anti-Hallucination อย่างเคร่งครัด ห้ามเดาค่าตัวเลขเฉพาะรุ่นโดยไม่มีข้อมูลยืนยัน และตอบเป็น JSON ตามโครงสร้างเดิมเท่านั้น`;
+}
+
 

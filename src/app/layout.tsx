@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Inter, Noto_Sans_Thai, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
 
@@ -18,10 +18,25 @@ const jetbrainsMono = JetBrains_Mono({
   subsets: ["latin"],
 });
 
+export const viewport: Viewport = {
+  themeColor: "#ea580c",
+  width: "device-width",
+  initialScale: 1,
+};
+
 export const metadata: Metadata = {
   title: "Fix it AI — ผู้ช่วยช่างอัจฉริยะสำหรับทุกคน",
   description:
     "เปลี่ยนคนทั่วไปให้กลายเป็นช่างมือโปร วิเคราะห์อาการเสียรถยนต์ เครื่องใช้ไฟฟ้า อิเล็กทรอนิกส์ในบ้าน/สำนักงาน พร้อมแนะนำอะไหล่ | Dev. By Kru.Gorthailand",
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "default",
+    title: "Fix it AI",
+  },
+  icons: {
+    icon: "/icon.svg",
+    apple: "/icon-192.png",
+  },
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {

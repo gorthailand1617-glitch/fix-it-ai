@@ -48,6 +48,7 @@ function applyTemplate(
 ): string {
   if (!template || !template.trim()) return targetUrl;
   const t = template.trim();
+  if (!/^https?:\/\//i.test(t)) return targetUrl;
   if (t.includes("{url}") || t.includes("{keyword}")) {
     return t
       .replace(/\{url\}/g, encodeURIComponent(targetUrl))
@@ -84,3 +85,4 @@ export function buildLazadaAffiliateLink(keyword: string): string {
     keyword
   );
 }
+

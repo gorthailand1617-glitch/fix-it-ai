@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useEffect, useState, useSyncExternalStore } from "react";
 import {
   AlertTriangle,
   Check,
@@ -15,6 +15,9 @@ import {
   ShieldAlert,
   ShieldCheck,
   ShoppingBag,
+  Sparkles,
+  Square,
+  Volume2,
   Wrench,
 } from "lucide-react";
 import { DiagnosticResponse, RiskLevel } from "@/types/repair";
@@ -22,13 +25,29 @@ import {
   buildLazadaAffiliateLink,
   buildShopeeAffiliateLink,
 } from "@/lib/affiliate";
+import { getModelDisplayName, isGemini4Model } from "@/lib/models";
+import {
+  isSpeechSynthesisSupported,
+  speakThaiText,
+  stopSpeaking,
+} from "@/lib/speech";
 import MermaidDiagram from "./MermaidDiagram";
 
 interface DiagnosticCardProps {
   data: DiagnosticResponse;
   isDemo?: boolean;
+  modelUsed?: string;
+  messageId?: string;
+  completedSteps?: Record<string, boolean>;
+  onToggleStep?: (stepKey: string) => void;
+  safetyAcknowledged?: boolean;
+  onToggleSafetyAck?: (messageId: string) => void;
   onQuickReply?: (text: string) => void;
+  onQuickSend?: (text: string) => void;
+  isLoading?: boolean;
 }
+
+const emptySubscribe = () => () => {};
 
 const RISK_CONFIG: Record<
   RiskLevel,
@@ -70,9 +89,31 @@ const RISK_CONFIG: Record<
 export default function DiagnosticCard({
   data,
   isDemo,
+  modelUsed,
+  messageId,
+  completedSteps,
+  onToggleStep,
+  safetyAcknowledged,
+  onToggleSafetyAck,
   onQuickReply,
+  onQuickSend,
+  isLoading,
 }: DiagnosticCardProps) {
   const [copiedIndex, setCopiedIndex] = useState<number | null>(null);
+  const [speakingId, setSpeakingId] = useState<string | null>(null);
+
+  const ttsSupported = useSyncExternalStore(
+    emptySubscribe,
+    isSpeechSynthesisSupported,
+    () => false
+  );
+
+  useEffect(() => {
+    return () => {
+      stopSpeaking();
+    };
+  }, []);
+
   const risk = RISK_CONFIG[data.riskLevel] || RISK_CONFIG.caution;
   const RiskIcon = risk.icon;
 
@@ -82,37 +123,139 @@ export default function DiagnosticCard({
     setTimeout(() => setCopiedIndex(null), 1500);
   };
 
+  const handleToggleSpeak = (id: string, textToRead: string) => {
+    if (speakingId === id) {
+      stopSpeaking();
+      setSpeakingId(null);
+      return;
+    }
+    setSpeakingId(id);
+    const started = speakThaiText(textToRead, () => {
+      setSpeakingId((curr) => (curr === id ? null : curr));
+    });
+    if (!started) {
+      setSpeakingId(null);
+    }
+  };
+
+  const totalSteps = data.inspectionSteps?.length || 0;
+  const completedCount =
+    messageId && data.inspectionSteps
+      ? data.inspectionSteps.filter((step) =>
+          Boolean(completedSteps?.[`${messageId}:${step.stepNumber}`])
+        ).length
+      : 0;
+
   return (
     <div className="space-y-4 text-slate-800">
-      {/* Headline & Demo tag */}
+      {/* Headline, TTS & Demo tag */}
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <h3 className="text-base sm:text-lg font-bold text-slate-900 leading-snug">
+        <h3 className="text-base sm:text-lg font-bold text-slate-900 leading-snug flex-1 min-w-[200px]">
           {data.headline}
         </h3>
-        {isDemo && (
-          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-medium bg-slate-100 text-slate-600 border border-slate-200">
-            โหมดสาธิต (Demo)
-          </span>
-        )}
+        <div className="flex items-center gap-2 shrink-0">
+          {ttsSupported && (
+            <button
+              type="button"
+              onClick={() =>
+                handleToggleSpeak(
+                  "card",
+                  `${data.headline} ระดับความปลอดภัย ${risk.label} ${data.riskSummary}`
+                )
+              }
+              className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-semibold border transition-colors ${
+                speakingId === "card"
+                  ? "bg-orange-600 text-white border-orange-600"
+                  : "bg-slate-100 text-slate-700 border-slate-200 hover:bg-orange-50 hover:text-orange-700 hover:border-orange-200"
+              }`}
+              title="อ่านหัวข้อและคำเตือนความปลอดภัยออกเสียง"
+            >
+              {speakingId === "card" ? (
+                <>
+                  <Square className="w-3 h-3 fill-current" />
+                  <span>หยุดฟัง</span>
+                </>
+              ) : (
+                <>
+                  <Volume2 className="w-3.5 h-3.5" />
+                  <span>ฟังสรุป</span>
+                </>
+              )}
+            </button>
+          )}
+          {isDemo && (
+            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-medium bg-slate-100 text-slate-600 border border-slate-200">
+              โหมดสาธิต (Demo)
+            </span>
+          )}
+          {!isDemo && modelUsed && (
+            <span
+              className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-medium border ${
+                isGemini4Model(modelUsed)
+                  ? "bg-violet-50 text-violet-800 border-violet-200"
+                  : "bg-slate-100 text-slate-600 border-slate-200"
+              }`}
+              title={`วิเคราะห์โดย ${modelUsed}`}
+            >
+              {isGemini4Model(modelUsed) && (
+                <Sparkles className="w-3 h-3 text-violet-600" />
+              )}
+              <span>{getModelDisplayName(modelUsed)}</span>
+            </span>
+          )}
+        </div>
       </div>
 
       {/* Safety Gatekeeper Banner */}
       <div
-        className={`rounded-xl border ${risk.border} ${risk.bg} p-3.5 flex items-start gap-3`}
+        className={`rounded-xl border ${risk.border} ${risk.bg} p-3.5 space-y-2.5`}
       >
-        <div className={`p-1.5 rounded-lg shrink-0 ${risk.badge}`}>
-          <RiskIcon className="w-4 h-4" />
-        </div>
-        <div className="space-y-1">
-          <div className="flex items-center gap-2">
-            <span className={`text-xs font-bold uppercase tracking-wide ${risk.text}`}>
-              ระดับความปลอดภัย: {risk.label}
-            </span>
+        <div className="flex items-start gap-3">
+          <div className={`p-1.5 rounded-lg shrink-0 ${risk.badge}`}>
+            <RiskIcon className="w-4 h-4" />
           </div>
-          <p className={`text-xs sm:text-sm leading-relaxed ${risk.text}`}>
-            {data.riskSummary}
-          </p>
+          <div className="space-y-1">
+            <div className="flex items-center gap-2">
+              <span
+                className={`text-xs font-bold uppercase tracking-wide ${risk.text}`}
+              >
+                ระดับความปลอดภัย: {risk.label}
+              </span>
+            </div>
+            <p className={`text-xs sm:text-sm leading-relaxed ${risk.text}`}>
+              {data.riskSummary}
+            </p>
+          </div>
         </div>
+
+        {(data.riskLevel === "caution" || data.riskLevel === "danger") &&
+          messageId &&
+          onToggleSafetyAck && (
+            <button
+              type="button"
+              onClick={() => onToggleSafetyAck(messageId)}
+              className={`w-full flex items-start gap-2.5 rounded-lg border px-3 py-2 text-left text-xs transition-colors ${
+                safetyAcknowledged
+                  ? "border-emerald-300 bg-white/90 text-emerald-900"
+                  : "border-black/10 bg-white/70 hover:bg-white text-slate-800"
+              }`}
+            >
+              <span
+                className={`mt-0.5 w-4 h-4 rounded flex items-center justify-center border shrink-0 ${
+                  safetyAcknowledged
+                    ? "bg-emerald-600 border-emerald-600 text-white"
+                    : "border-slate-400 bg-white"
+                }`}
+              >
+                {safetyAcknowledged && <Check className="w-3 h-3" />}
+              </span>
+              <span className="font-medium leading-relaxed">
+                {data.riskLevel === "danger"
+                  ? "ยืนยัน: รับทราบความเสี่ยงสูง — จะตรวจเฉพาะจุดปลอดภัยหรือติดต่อช่างผู้เชี่ยวชาญ"
+                  : "ยืนยัน: รับทราบข้อควรระวังและเตรียมความปลอดภัยแล้ว (เช่น สับเบรกเกอร์ / ดึงเบรกมือ / รอเครื่องเย็น)"}
+              </span>
+            </button>
+          )}
       </div>
 
       {/* Summary Table */}
@@ -150,82 +293,215 @@ export default function DiagnosticCard({
       {/* Inspection Steps */}
       {data.inspectionSteps && data.inspectionSteps.length > 0 && (
         <div className="space-y-3">
-          <div className="text-xs font-bold uppercase tracking-wider text-slate-500 flex items-center gap-1.5">
-            <Wrench className="w-3.5 h-3.5 text-orange-600" />
-            <span>ขั้นตอนตรวจเช็กทีละจุด</span>
-          </div>
-          {data.inspectionSteps.map((step) => (
-            <div
-              key={step.stepNumber}
-              className="rounded-xl border border-slate-200 bg-white p-4 shadow-xs space-y-2.5"
-            >
-              <div className="flex items-start justify-between gap-2">
-                <div className="flex items-center gap-2.5">
-                  <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-orange-600 text-white text-xs font-bold shrink-0">
-                    {step.stepNumber}
-                  </span>
-                  <h4 className="font-bold text-sm sm:text-base text-slate-900">
-                    {step.title}
-                  </h4>
-                </div>
-              </div>
-
-              <p className="text-xs sm:text-sm text-slate-600">
-                <span className="font-semibold text-slate-800">เป้าหมาย:</span>{" "}
-                {step.goal}
-              </p>
-
-              <ol className="space-y-1.5 pl-1">
-                {step.steps.map((s, i) => (
-                  <li
-                    key={i}
-                    className="flex items-start gap-2 text-xs sm:text-sm text-slate-800 leading-relaxed"
-                  >
-                    <span className="text-orange-600 font-semibold mt-0.5">
-                      {i + 1}.
-                    </span>
-                    <span>{s}</span>
-                  </li>
-                ))}
-              </ol>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1">
-                <div className="rounded-lg bg-emerald-50/70 border border-emerald-200/80 p-2.5 text-xs">
-                  <div className="font-semibold text-emerald-800 flex items-center gap-1 mb-0.5">
-                    <CheckCircle2 className="w-3.5 h-3.5" />
-                    <span>ค่าปกติที่ควรเห็น</span>
-                  </div>
-                  <p className="text-emerald-950 leading-relaxed">{step.standard}</p>
-                </div>
-
-                <div className="rounded-lg bg-amber-50/70 border border-amber-200/80 p-2.5 text-xs">
-                  <div className="font-semibold text-amber-800 flex items-center gap-1 mb-0.5">
-                    <AlertTriangle className="w-3.5 h-3.5" />
-                    <span>ข้อควรระวัง</span>
-                  </div>
-                  <p className="text-amber-950 leading-relaxed">{step.safety}</p>
-                </div>
-              </div>
-
-              <div className="pt-1 flex flex-wrap items-center justify-between gap-2 text-xs text-slate-600 border-t border-slate-100">
-                <div>
-                  <span className="font-semibold text-slate-800">รายงานกลับ: </span>
-                  {step.reportBack}
-                </div>
-                {onQuickReply && (
-                  <button
-                    type="button"
-                    onClick={() =>
-                      onQuickReply(`ทำขั้นตอนที่ ${step.stepNumber} เสร็จแล้วครับ: `)
-                    }
-                    className="text-orange-600 hover:text-orange-700 font-semibold hover:underline shrink-0"
-                  >
-                    ตอบผลขั้นนี้ →
-                  </button>
-                )}
-              </div>
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div className="text-xs font-bold uppercase tracking-wider text-slate-500 flex items-center gap-1.5">
+              <Wrench className="w-3.5 h-3.5 text-orange-600" />
+              <span>ขั้นตอนตรวจเช็กทีละจุด</span>
             </div>
-          ))}
+            {messageId && totalSteps > 0 && (
+              <span
+                className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-semibold border ${
+                  completedCount === totalSteps
+                    ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+                    : "bg-slate-100 text-slate-600 border-slate-200"
+                }`}
+              >
+                <CheckCircle2 className="w-3 h-3" />
+                <span>
+                  เสร็จแล้ว {completedCount}/{totalSteps}
+                </span>
+              </span>
+            )}
+          </div>
+
+          {data.inspectionSteps.map((step) => {
+            const stepKey = messageId ? `${messageId}:${step.stepNumber}` : "";
+            const isDone = Boolean(stepKey && completedSteps?.[stepKey]);
+            const stepSpeakId = `step-${step.stepNumber}`;
+            const stepSpeakText = `ขั้นตอนที่ ${step.stepNumber} ${step.title} เป้าหมาย ${step.goal} วิธีทำ ${step.steps.join(" ")} ค่าปกติที่ควรเห็น ${step.standard} ข้อควรระวัง ${step.safety}`;
+
+            return (
+              <div
+                key={step.stepNumber}
+                className={`rounded-xl border p-4 shadow-xs space-y-2.5 transition-colors ${
+                  isDone
+                    ? "border-emerald-200 bg-emerald-50/30"
+                    : "border-slate-200 bg-white"
+                }`}
+              >
+                <div className="flex items-start justify-between gap-2">
+                  <div className="flex items-center gap-2.5">
+                    {messageId && onToggleStep ? (
+                      <button
+                        type="button"
+                        onClick={() => onToggleStep(stepKey)}
+                        className={`inline-flex items-center justify-center w-6 h-6 rounded-full text-xs font-bold shrink-0 transition-colors ${
+                          isDone
+                            ? "bg-emerald-600 text-white"
+                            : "bg-orange-600 hover:bg-orange-700 text-white"
+                        }`}
+                        title={
+                          isDone
+                            ? "ทำเครื่องหมายว่ายังไม่เสร็จ"
+                            : "ติ๊กทำขั้นนี้เสร็จแล้ว"
+                        }
+                        aria-label={`สลับสถานะขั้นตอนที่ ${step.stepNumber}`}
+                      >
+                        {isDone ? (
+                          <Check className="w-3.5 h-3.5" />
+                        ) : (
+                          step.stepNumber
+                        )}
+                      </button>
+                    ) : (
+                      <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-orange-600 text-white text-xs font-bold shrink-0">
+                        {step.stepNumber}
+                      </span>
+                    )}
+                    <h4
+                      className={`font-bold text-sm sm:text-base ${
+                        isDone
+                          ? "text-emerald-950 line-through decoration-emerald-500/60"
+                          : "text-slate-900"
+                      }`}
+                    >
+                      {step.title}
+                    </h4>
+                  </div>
+
+                  {ttsSupported && (
+                    <button
+                      type="button"
+                      onClick={() => handleToggleSpeak(stepSpeakId, stepSpeakText)}
+                      className={`inline-flex items-center gap-1 px-2 py-1 rounded-lg text-[11px] font-medium border shrink-0 transition-colors ${
+                        speakingId === stepSpeakId
+                          ? "bg-orange-600 text-white border-orange-600"
+                          : "bg-slate-50 text-slate-600 border-slate-200 hover:bg-orange-50 hover:text-orange-700"
+                      }`}
+                      title="อ่านขั้นตอนนี้เป็นเสียง"
+                    >
+                      {speakingId === stepSpeakId ? (
+                        <>
+                          <Square className="w-3 h-3 fill-current" />
+                          <span>หยุด</span>
+                        </>
+                      ) : (
+                        <>
+                          <Volume2 className="w-3.5 h-3.5" />
+                          <span>ฟังขั้นนี้</span>
+                        </>
+                      )}
+                    </button>
+                  )}
+                </div>
+
+                <p className="text-xs sm:text-sm text-slate-600">
+                  <span className="font-semibold text-slate-800">เป้าหมาย:</span>{" "}
+                  {step.goal}
+                </p>
+
+                <ol className="space-y-1.5 pl-1">
+                  {step.steps.map((s, i) => (
+                    <li
+                      key={i}
+                      className="flex items-start gap-2 text-xs sm:text-sm text-slate-800 leading-relaxed"
+                    >
+                      <span className="text-orange-600 font-semibold mt-0.5">
+                        {i + 1}.
+                      </span>
+                      <span>{s}</span>
+                    </li>
+                  ))}
+                </ol>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1">
+                  <div className="rounded-lg bg-emerald-50/70 border border-emerald-200/80 p-2.5 text-xs">
+                    <div className="font-semibold text-emerald-800 flex items-center gap-1 mb-0.5">
+                      <CheckCircle2 className="w-3.5 h-3.5" />
+                      <span>ค่าปกติที่ควรเห็น</span>
+                    </div>
+                    <p className="text-emerald-950 leading-relaxed">
+                      {step.standard}
+                    </p>
+                  </div>
+
+                  <div className="rounded-lg bg-amber-50/70 border border-amber-200/80 p-2.5 text-xs">
+                    <div className="font-semibold text-amber-800 flex items-center gap-1 mb-0.5">
+                      <AlertTriangle className="w-3.5 h-3.5" />
+                      <span>ข้อควรระวัง</span>
+                    </div>
+                    <p className="text-amber-950 leading-relaxed">
+                      {step.safety}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="pt-2 space-y-2 border-t border-slate-100">
+                  <div className="text-xs text-slate-600">
+                    <span className="font-semibold text-slate-800">
+                      รายงานกลับ:{" "}
+                    </span>
+                    {step.reportBack}
+                  </div>
+
+                  {(onQuickSend || onQuickReply) && (
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      <button
+                        type="button"
+                        disabled={isLoading}
+                        onClick={() => {
+                          if (stepKey && onToggleStep && !isDone) {
+                            onToggleStep(stepKey);
+                          }
+                          const msg = `ทำขั้นตอนที่ ${step.stepNumber} (${step.title}) เสร็จแล้วครับ: ผลตรวจปกติตามค่ามาตรฐาน`;
+                          if (onQuickSend) {
+                            onQuickSend(msg);
+                          } else {
+                            onQuickReply?.(msg);
+                          }
+                        }}
+                        className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-100 disabled:opacity-40 transition-colors"
+                      >
+                        <CheckCircle2 className="w-3 h-3" />
+                        <span>ปกติ</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        disabled={isLoading}
+                        onClick={() =>
+                          onQuickReply?.(
+                            `ทำขั้นตอนที่ ${step.stepNumber} (${step.title}) แล้วพบความผิดปกติ: `
+                          )
+                        }
+                        className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-semibold bg-amber-50 text-amber-800 border border-amber-200 hover:bg-amber-100 disabled:opacity-40 transition-colors"
+                      >
+                        <AlertTriangle className="w-3 h-3" />
+                        <span>พบผิดปกติ</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        disabled={isLoading}
+                        onClick={() => {
+                          const msg = `ขั้นตอนที่ ${step.stepNumber} (${step.title}): ไม่มีเครื่องมือตามที่ระบุครับ มีวิธีตรวจเช็กด้วยตาเปล่าหรือเครื่องมือพื้นฐานแทนไหม`;
+                          if (onQuickSend) {
+                            onQuickSend(msg);
+                          } else {
+                            onQuickReply?.(msg);
+                          }
+                        }}
+                        className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-semibold bg-slate-100 text-slate-700 border border-slate-200 hover:bg-slate-200 disabled:opacity-40 transition-colors"
+                      >
+                        <Wrench className="w-3 h-3" />
+                        <span>ไม่มีเครื่องมือ</span>
+                      </button>
+                    </div>
+                  )}
+                </div>
+              </div>
+            );
+          })}
         </div>
       )}
 
@@ -278,7 +554,9 @@ export default function DiagnosticCard({
                       {ref.title}
                     </div>
                     <p className="text-[11px] text-slate-600 leading-snug">
-                      <span className="font-semibold text-slate-700">จุดสังเกต: </span>
+                      <span className="font-semibold text-slate-700">
+                        จุดสังเกต:{" "}
+                      </span>
                       {ref.whatToLookFor}
                     </p>
                   </div>
@@ -452,4 +730,3 @@ export default function DiagnosticCard({
     </div>
   );
 }
-

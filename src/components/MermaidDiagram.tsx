@@ -1,10 +1,45 @@
 "use client";
 
 import React, { useEffect, useId, useState } from "react";
-import { Code2, GitBranch, Maximize2, X } from "lucide-react";
+import { AlertCircle, Code2, GitBranch, Maximize2, X } from "lucide-react";
 
 interface MermaidDiagramProps {
   chart: string;
+}
+
+type MermaidModule = typeof import("mermaid")["default"];
+
+let mermaidSingletonPromise: Promise<MermaidModule> | null = null;
+let diagramCounter = 0;
+
+function getMermaid(): Promise<MermaidModule> {
+  if (!mermaidSingletonPromise) {
+    mermaidSingletonPromise = import("mermaid").then((mod) => {
+      const mermaid = mod.default;
+      mermaid.initialize({
+        startOnLoad: false,
+        suppressErrorRendering: true,
+        securityLevel: "strict",
+        theme: "base",
+        themeVariables: {
+          primaryColor: "#FFF7ED",
+          primaryTextColor: "#1E293B",
+          primaryBorderColor: "#F97316",
+          lineColor: "#64748B",
+          secondaryColor: "#F8FAFC",
+          tertiaryColor: "#FFFFFF",
+          fontFamily: "var(--font-sans), sans-serif",
+          fontSize: "13px",
+        },
+        flowchart: {
+          curve: "basis",
+          padding: 14,
+        },
+      });
+      return mermaid;
+    });
+  }
+  return mermaidSingletonPromise;
 }
 
 export default function MermaidDiagram({ chart }: MermaidDiagramProps) {
@@ -19,33 +54,15 @@ export default function MermaidDiagram({ chart }: MermaidDiagramProps) {
 
     async function renderChart() {
       try {
-        const mermaid = (await import("mermaid")).default;
-        mermaid.initialize({
-          startOnLoad: false,
-          suppressErrorRendering: true,
-          theme: "base",
-          themeVariables: {
-            primaryColor: "#FFF7ED",
-            primaryTextColor: "#1E293B",
-            primaryBorderColor: "#F97316",
-            lineColor: "#64748B",
-            secondaryColor: "#F8FAFC",
-            tertiaryColor: "#FFFFFF",
-            fontFamily: "var(--font-sans), sans-serif",
-            fontSize: "13px",
-          },
-          flowchart: {
-            curve: "basis",
-            padding: 14,
-          },
-        });
+        const mermaid = await getMermaid();
 
         const cleanChart = chart
           .replace(/\\n/g, "\n")
           .replace(/([^\{])"\}\}/g, '$1"}')
           .trim();
 
-        const renderId = `mermaid-${uniqueId}-${Date.now()}`;
+        diagramCounter += 1;
+        const renderId = `mermaid-${uniqueId}-${diagramCounter}`;
         await mermaid.parse(cleanChart);
         const { svg: renderedSvg } = await mermaid.render(renderId, cleanChart);
         if (!cancelled) {
@@ -60,6 +77,7 @@ export default function MermaidDiagram({ chart }: MermaidDiagramProps) {
             .forEach((el) => el.remove());
         }
         if (!cancelled) {
+          setSvg("");
           setError(true);
         }
       }
@@ -73,6 +91,17 @@ export default function MermaidDiagram({ chart }: MermaidDiagramProps) {
       cancelled = true;
     };
   }, [chart, uniqueId]);
+
+  useEffect(() => {
+    if (!expanded) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        setExpanded(false);
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [expanded]);
 
   if (!chart) return null;
 
@@ -93,7 +122,7 @@ export default function MermaidDiagram({ chart }: MermaidDiagramProps) {
               <Code2 className="w-3.5 h-3.5" />
               {showCode ? "ดูแผนภาพ" : "โค้ด"}
             </button>
-            {!showCode && svg && (
+            {!showCode && !error && svg && (
               <button
                 type="button"
                 onClick={() => setExpanded(true)}
@@ -107,10 +136,17 @@ export default function MermaidDiagram({ chart }: MermaidDiagramProps) {
         </div>
 
         <div className="p-4 overflow-x-auto">
-          {showCode || error ? (
+          {showCode ? (
             <pre className="text-xs font-mono text-slate-700 bg-slate-50 p-3 rounded-lg overflow-x-auto whitespace-pre-wrap">
               {chart}
             </pre>
+          ) : error ? (
+            <div className="flex items-start gap-2.5 rounded-lg border border-amber-200 bg-amber-50/70 px-3 py-2.5 text-xs text-amber-900">
+              <AlertCircle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+              <p className="leading-relaxed">
+                ไม่สามารถแสดงแผนภาพอัตโนมัติสำหรับเคสนี้ได้ กรุณาดูขั้นตอนตรวจเช็กด้านล่าง หรือกดปุ่ม &quot;โค้ด&quot; เพื่อดูข้อความแผนภาพ
+              </p>
+            </div>
           ) : svg ? (
             <div
               className="flex justify-center min-w-[280px] [&>svg]:max-w-full [&>svg]:h-auto"
@@ -142,6 +178,7 @@ export default function MermaidDiagram({ chart }: MermaidDiagramProps) {
                 type="button"
                 onClick={() => setExpanded(false)}
                 className="p-1.5 rounded-lg text-slate-500 hover:bg-slate-100 hover:text-slate-800"
+                title="ปิด (Esc)"
               >
                 <X className="w-5 h-5" />
               </button>
@@ -156,4 +193,3 @@ export default function MermaidDiagram({ chart }: MermaidDiagramProps) {
     </>
   );
 }
-

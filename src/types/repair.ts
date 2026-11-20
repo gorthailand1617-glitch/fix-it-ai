@@ -89,13 +89,66 @@ export interface ChatMessage {
   attachments?: FileAttachment[];
   diagnostic?: DiagnosticResponse;
   isDemo?: boolean;
+  isError?: boolean;
+  modelUsed?: string;
   timestamp: number;
+}
+
+export interface LoadingProgress {
+  stage: string;
+  message: string;
+  model?: string;
+  previewHeadline?: string;
+  previewRiskLevel?: RiskLevel;
+}
+
+export type DiagnoseStreamEvent =
+  | { type: "status"; stage: string; message: string; model?: string }
+  | { type: "preview"; headline?: string; riskLevel?: RiskLevel }
+  | {
+      type: "result";
+      diagnostic: DiagnosticResponse;
+      isDemo: boolean;
+      modelUsed?: string;
+    }
+  | { type: "error"; error: string; retryAfterSeconds?: number };
+
+export interface ToastItem {
+  id: string;
+  tone: "info" | "success" | "warning" | "error";
+  message: string;
+}
+
+export type CaseStatus = "diagnosing" | "waiting_parts" | "resolved";
+
+export type ExplanationMode = "beginner" | "technician";
+
+export type ModelProfileId =
+  | "auto"
+  | "gemini-4-hydrogen"
+  | "gemini-4-neon"
+  | "gemini-4-carbon"
+  | "gemini-4-argon";
+
+export interface EquipmentAsset {
+  id: string;
+  name: string;
+  category: RepairCategory;
+  brandModel: string;
+  yearOrSpec?: string;
+  notes?: string;
+  createdAt: number;
 }
 
 export interface RepairCase {
   id: string;
   title: string;
   category: RepairCategory;
+  status?: CaseStatus;
+  assetId?: string;
+  assetSummary?: string;
+  completedSteps?: Record<string, boolean>;
+  acknowledgedSafety?: Record<string, boolean>;
   messages: ChatMessage[];
   updatedAt: number;
 }
