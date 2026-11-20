@@ -32,6 +32,9 @@ interface ChatMessageListProps {
   onQuickReply: (prefix: string) => void;
   onQuickSend?: (text: string) => void;
   onPreviewImage?: (image: { src: string; name: string }) => void;
+  activeWizardMsgId?: string;
+  activeWizardCount?: number;
+  onFocusWizard?: () => void;
 }
 
 const PREVIEW_RISK_BADGE: Record<
@@ -86,6 +89,9 @@ function ChatMessageList({
   onQuickReply,
   onQuickSend,
   onPreviewImage,
+  activeWizardMsgId,
+  activeWizardCount,
+  onFocusWizard,
 }: ChatMessageListProps) {
   const chatEndRef = useRef<HTMLDivElement>(null);
 
@@ -180,6 +186,12 @@ function ChatMessageList({
                   onQuickReply={onQuickReply}
                   onQuickSend={onQuickSend}
                   isLoading={isLoading}
+                  wizardQuestionCount={
+                    msg.id === activeWizardMsgId ? activeWizardCount : 0
+                  }
+                  onFocusWizard={
+                    msg.id === activeWizardMsgId ? onFocusWizard : undefined
+                  }
                 />
               ) : (
                 <div className="flex flex-wrap items-center justify-between gap-3">

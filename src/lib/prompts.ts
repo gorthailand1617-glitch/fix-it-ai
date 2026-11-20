@@ -84,7 +84,7 @@ export const FIX_IT_SYSTEM_PROMPT = `คุณคือ "Fix it AI" ผู้ช
       "allowCustom": true
     }
   ],
-  "closingPrompt": "ประโยคปิดท้ายชวนให้ทำขั้นตอนที่ 1-2 หรือเลือกคำตอบในตัวช่วยด้านล่าง"
+  "closingPrompt": "ประโยคปิดท้ายชวนให้ทำขั้นตอนที่ 1-2 และกดเลือกคำตอบในช่อง 'ตอบคำถามช่วยวิเคราะห์' ด้านขวา"
 }`;
 
 export function buildSystemPrompt(mode: ExplanationMode = "beginner"): string {

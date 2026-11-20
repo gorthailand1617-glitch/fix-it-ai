@@ -3,11 +3,13 @@
 import React, { useEffect, useState, useSyncExternalStore } from "react";
 import {
   AlertTriangle,
+  ArrowRight,
   Check,
   CheckCircle2,
   ClipboardList,
   Copy,
   ExternalLink,
+  HelpCircle,
   Image as ImageIcon,
   Info,
   Package,
@@ -45,6 +47,8 @@ interface DiagnosticCardProps {
   onQuickReply?: (text: string) => void;
   onQuickSend?: (text: string) => void;
   isLoading?: boolean;
+  wizardQuestionCount?: number;
+  onFocusWizard?: () => void;
 }
 
 const emptySubscribe = () => () => {};
@@ -98,6 +102,8 @@ function DiagnosticCard({
   onQuickReply,
   onQuickSend,
   isLoading,
+  wizardQuestionCount,
+  onFocusWizard,
 }: DiagnosticCardProps) {
   const [copiedIndex, setCopiedIndex] = useState<number | null>(null);
   const [speakingId, setSpeakingId] = useState<string | null>(null);
@@ -116,6 +122,9 @@ function DiagnosticCard({
 
   const risk = RISK_CONFIG[data.riskLevel] || RISK_CONFIG.caution;
   const RiskIcon = risk.icon;
+  const showWizardCta = Boolean(
+    wizardQuestionCount && wizardQuestionCount > 0 && onFocusWizard
+  );
 
   const handleCopyKeyword = (text: string, idx: number) => {
     navigator.clipboard?.writeText(text);
@@ -257,6 +266,35 @@ function DiagnosticCard({
             </button>
           )}
       </div>
+
+      {/* Top Guided Call-to-Action for Helper Wizard */}
+      {showWizardCta && (
+        <div className="rounded-xl border border-orange-200 bg-orange-50/80 px-3.5 py-2.5 flex flex-wrap items-center justify-between gap-2.5">
+          <div className="flex items-start gap-2.5 min-w-0 flex-1">
+            <div className="p-1.5 rounded-lg bg-orange-600 text-white shrink-0 mt-0.5">
+              <HelpCircle className="w-3.5 h-3.5" />
+            </div>
+            <div className="min-w-0 space-y-0.5">
+              <div className="text-xs sm:text-sm font-bold text-slate-900">
+                ขั้นตอนถัดไป: ตอบคำถามช่วยวิเคราะห์ {wizardQuestionCount} ข้อ
+              </div>
+              <p className="text-[11px] sm:text-xs text-slate-600 leading-snug">
+                กดเลือกคำตอบสั้น ๆ เพื่อให้ AI เจาะลึกสาเหตุและระบุอะไหล่ได้แม่นยำขึ้น
+              </p>
+            </div>
+          </div>
+
+          <button
+            type="button"
+            onClick={onFocusWizard}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-orange-600 text-white hover:bg-orange-700 transition-colors shrink-0"
+          >
+            <span className="hidden md:inline">ไปตอบช่องขวา</span>
+            <span className="md:hidden">ตอบคำถามเลย</span>
+            <ArrowRight className="w-3.5 h-3.5" />
+          </button>
+        </div>
+      )}
 
       {/* Summary Table */}
       {data.summaryTable && data.summaryTable.length > 0 && (
@@ -722,10 +760,24 @@ function DiagnosticCard({
       )}
 
       {/* Closing Prompt */}
-      {data.closingPrompt && (
-        <p className="text-xs sm:text-sm text-slate-700 font-medium bg-slate-100/80 rounded-xl px-3.5 py-2.5 border border-slate-200">
-          💡 {data.closingPrompt}
-        </p>
+      {(data.closingPrompt || showWizardCta) && (
+        <div className="bg-slate-100/80 rounded-xl px-3.5 py-2.5 border border-slate-200 flex flex-wrap items-center justify-between gap-2.5">
+          <p className="text-xs sm:text-sm text-slate-700 font-medium flex-1 min-w-[200px]">
+            💡{" "}
+            {data.closingPrompt ||
+              "กดเลือกคำตอบในช่อง 'ตอบคำถามช่วยวิเคราะห์' ด้านขวาเพื่อให้ AI วิเคราะห์ขั้นตอนถัดไปได้แม่นยำขึ้น"}
+          </p>
+          {showWizardCta && (
+            <button
+              type="button"
+              onClick={onFocusWizard}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-orange-600 text-white hover:bg-orange-700 transition-colors shrink-0"
+            >
+              <span>ตอบคำถามช่วยวิเคราะห์ ({wizardQuestionCount} ข้อ)</span>
+              <ArrowRight className="w-3.5 h-3.5" />
+            </button>
+          )}
+        </div>
       )}
     </div>
   );

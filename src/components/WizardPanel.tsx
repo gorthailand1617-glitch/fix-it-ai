@@ -9,6 +9,7 @@ interface WizardPanelProps {
   onSubmit: (formattedAnswer: string) => void;
   onDismiss: () => void;
   disabled?: boolean;
+  isHighlighted?: boolean;
 }
 
 function WizardPanel({
@@ -16,6 +17,7 @@ function WizardPanel({
   onSubmit,
   onDismiss,
   disabled,
+  isHighlighted,
 }: WizardPanelProps) {
   const [activeTab, setActiveTab] = useState(0);
   const [answers, setAnswers] = useState<Record<string, string>>({});
@@ -58,16 +60,20 @@ function WizardPanel({
   };
 
   return (
-    <div className="h-full flex flex-col bg-white">
+    <div
+      className={`h-full flex flex-col bg-white transition-shadow duration-300 ${
+        isHighlighted ? "ring-2 ring-inset ring-orange-500" : ""
+      }`}
+    >
       {/* Header & Tabs */}
-      <div className="shrink-0 bg-orange-50/80 border-b border-orange-100 px-4 py-3 space-y-2.5">
+      <div className="shrink-0 bg-orange-50/90 border-b border-orange-200/80 px-4 py-3 space-y-2.5">
         <div className="flex items-center justify-between gap-2">
-          <div className="flex items-center gap-2 min-w-0">
-            <HelpCircle className="w-4 h-4 text-orange-600 shrink-0" />
-            <span className="text-sm font-bold text-slate-900 truncate">
-              ตอบคำถามช่วยวิเคราะห์
-            </span>
-          </div>
+          <span className="inline-flex items-center gap-1.5 rounded-full bg-orange-600/10 border border-orange-200 px-2.5 py-0.5 text-[11px] font-bold text-orange-800">
+            {answeredCount === 0 && (
+              <span className="w-1.5 h-1.5 rounded-full bg-orange-600 animate-pulse" />
+            )}
+            <span>ขั้นตอนที่ 2 • ช่วยวิเคราะห์ให้แม่นขึ้น</span>
+          </span>
 
           <button
             type="button"
@@ -78,6 +84,18 @@ function WizardPanel({
           >
             <X className="w-4 h-4" />
           </button>
+        </div>
+
+        <div className="space-y-1">
+          <div className="flex items-center gap-2 min-w-0">
+            <HelpCircle className="w-4 h-4 text-orange-600 shrink-0" />
+            <span className="text-sm font-bold text-slate-900 truncate">
+              ตอบคำถามช่วยวิเคราะห์
+            </span>
+          </div>
+          <p className="text-xs text-slate-600 leading-relaxed">
+            กดเลือกคำตอบที่ตรงกับอาการด้านล่าง แล้วกดส่งเพื่อให้ AI ระบุสาเหตุแม่นยำขึ้น
+          </p>
         </div>
 
         <div className="flex flex-wrap items-center gap-1.5">

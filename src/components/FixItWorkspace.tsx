@@ -95,6 +95,7 @@ export default function FixItWorkspace() {
     string | null
   >(null);
   const [mobilePane, setMobilePane] = useState<"guide" | "wizard">("guide");
+  const [wizardHighlighted, setWizardHighlighted] = useState(false);
   const [toasts, setToasts] = useState<ToastItem[]>([]);
 
   const [lightboxImage, setLightboxImage] = useState<{
@@ -117,6 +118,10 @@ export default function FixItWorkspace() {
   );
   const activeCaseIdRef = useRef("");
   const lastAssistantMsgIdRef = useRef<string | null>(null);
+  const wizardAsideRef = useRef<HTMLElement | null>(null);
+  const wizardHighlightTimerRef = useRef<ReturnType<typeof setTimeout> | null>(
+    null
+  );
   const sendMessageRef = useRef<
     (overrideText?: string, overrideCategory?: RepairCategory) => void
   >(() => {});
@@ -158,10 +163,13 @@ export default function FixItWorkspace() {
     });
   }, [addToast]);
 
-  // Abort any in-flight diagnostic request on unmount
+  // Abort any in-flight diagnostic request and clear highlight timer on unmount
   useEffect(() => {
     return () => {
       abortControllerRef.current?.abort();
+      if (wizardHighlightTimerRef.current) {
+        clearTimeout(wizardHighlightTimerRef.current);
+      }
     };
   }, []);
 
@@ -929,6 +937,22 @@ export default function FixItWorkspace() {
     sendMessageRef.current(formatted);
   }, []);
 
+  const handleFocusWizard = useCallback(() => {
+    setWizardDismissedForMsgId(null);
+    setMobilePane("wizard");
+    setWizardHighlighted(true);
+    if (wizardHighlightTimerRef.current) {
+      clearTimeout(wizardHighlightTimerRef.current);
+    }
+    wizardHighlightTimerRef.current = setTimeout(() => {
+      wizardHighlightTimerRef.current = null;
+      setWizardHighlighted(false);
+    }, 1500);
+    requestAnimationFrame(() => {
+      wizardAsideRef.current?.focus({ preventScroll: true });
+    });
+  }, []);
+
   const availableWizardQuestions =
     lastAssistantMsg &&
     activeCase?.messages[activeCase.messages.length - 1]?.id ===
@@ -1131,13 +1155,16 @@ export default function FixItWorkspace() {
                 <button
                   type="button"
                   onClick={() => setMobilePane("wizard")}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
+                  className={`inline-flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
                     effectiveMobilePane === "wizard"
                       ? "bg-orange-600 text-white shadow-2xs"
                       : "text-slate-600 hover:text-slate-900"
                   }`}
                 >
-                  ตอบคำถามช่วยวิเคราะห์ ({activeWizardQuestions.length})
+                  {effectiveMobilePane !== "wizard" && (
+                    <span className="w-2 h-2 rounded-full bg-orange-600 animate-pulse shrink-0" />
+                  )}
+                  <span>ตอบคำถามช่วยวิเคราะห์ ({activeWizardQuestions.length})</span>
                 </button>
               </div>
             </div>
@@ -1177,6 +1204,13 @@ export default function FixItWorkspace() {
                     onQuickReply={handleQuickReply}
                     onQuickSend={stableOnQuickSend}
                     onPreviewImage={setLightboxImage}
+                    activeWizardMsgId={
+                      availableWizardQuestions.length > 0
+                        ? lastAssistantMsg?.id
+                        : undefined
+                    }
+                    activeWizardCount={availableWizardQuestions.length}
+                    onFocusWizard={handleFocusWizard}
                   />
                 )}
               </div>
@@ -1184,8 +1218,10 @@ export default function FixItWorkspace() {
 
             {hasActiveWizard && (
               <aside
+                ref={wizardAsideRef}
+                tabIndex={-1}
                 aria-label="ตอบคำถามช่วยวิเคราะห์"
-                className={`flex-1 min-h-0 md:flex-none md:w-[320px] lg:w-[360px] xl:w-[400px] shrink-0 md:border-l border-slate-200 bg-white ${
+                className={`flex-1 min-h-0 md:flex-none md:w-[320px] lg:w-[360px] xl:w-[400px] shrink-0 md:border-l-2 md:border-orange-200/80 md:shadow-[-6px_0_20px_-12px_rgba(234,88,12,0.22)] bg-white outline-none ${
                   effectiveMobilePane === "wizard"
                     ? "flex flex-col"
                     : "hidden md:flex md:flex-col"
@@ -1195,6 +1231,7 @@ export default function FixItWorkspace() {
                   key={lastAssistantMsg?.id}
                   questions={activeWizardQuestions}
                   disabled={isLoading}
+                  isHighlighted={wizardHighlighted}
                   onDismiss={handleDismissWizard}
                   onSubmit={stableOnWizardSubmit}
                 />
