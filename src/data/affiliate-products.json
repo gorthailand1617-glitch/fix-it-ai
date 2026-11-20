@@ -1,0 +1,82 @@
+[
+  {
+    "id": "obd2-scanner",
+    "name": "เครื่องอ่านโค้ดรถยนต์ OBD2",
+    "category": "automotive",
+    "keywords": ["obd", "obd2", "obd-ii", "ตัวอ่านโค้ด"],
+    "shopeeUrl": "",
+    "lazadaUrl": ""
+  },
+  {
+    "id": "digital-multimeter",
+    "name": "ดิจิทัลมัลติมิเตอร์",
+    "category": "electronics",
+    "keywords": ["มัลติมิเตอร์", "multimeter"],
+    "shopeeUrl": "",
+    "lazadaUrl": ""
+  },
+  {
+    "id": "voltage-tester-screwdriver",
+    "name": "ไขควงวัดไฟ",
+    "category": "home_office",
+    "keywords": ["ไขควงวัดไฟ"],
+    "shopeeUrl": "",
+    "lazadaUrl": ""
+  },
+  {
+    "id": "clamp-meter",
+    "name": "แคลมป์มิเตอร์ / คีมแอมป์",
+    "category": "appliance",
+    "keywords": ["แคลมป์มิเตอร์", "คีมแอมป์", "clamp meter"],
+    "shopeeUrl": "",
+    "lazadaUrl": ""
+  },
+  {
+    "id": "ac-capacitor",
+    "name": "แคปรัน / ตัวเก็บประจุแอร์",
+    "category": "appliance",
+    "keywords": ["แคปรัน", "แคปสตาร์ท", "cap start", "capacitor", "ตัวเก็บประจุ"],
+    "shopeeUrl": "",
+    "lazadaUrl": ""
+  },
+  {
+    "id": "ac-coil-cleaner",
+    "name": "โฟมล้างแอร์ / น้ำยาล้างคอยล์",
+    "category": "appliance",
+    "keywords": ["โฟมล้างแอร์", "สเปรย์ล้างแอร์", "น้ำยาล้างคอยล์"],
+    "shopeeUrl": "",
+    "lazadaUrl": ""
+  },
+  {
+    "id": "socket-wrench-set",
+    "name": "ชุดประแจ / ชุดไขควงซ่อมงานช่าง",
+    "category": "automotive",
+    "keywords": ["ชุดประแจ", "ประแจแหวน", "ชุดไขควง"],
+    "shopeeUrl": "",
+    "lazadaUrl": ""
+  },
+  {
+    "id": "jump-starter",
+    "name": "สายพ่วงแบต / เครื่องจั๊มสตาร์ท",
+    "category": "automotive",
+    "keywords": ["สายพ่วงแบต", "จั๊มสตาร์ท", "jump starter"],
+    "shopeeUrl": "",
+    "lazadaUrl": ""
+  },
+  {
+    "id": "thermal-paste",
+    "name": "ซิลิโคนระบายความร้อน CPU",
+    "category": "electronics",
+    "keywords": ["ซิลิโคน cpu", "thermal paste", "ซิลิโคนระบายความร้อน"],
+    "shopeeUrl": "",
+    "lazadaUrl": ""
+  },
+  {
+    "id": "contact-cleaner",
+    "name": "สเปรย์ล้างหน้าสัมผัสไฟฟ้า",
+    "category": "electronics",
+    "keywords": ["สเปรย์ล้างหน้าสัมผัส", "contact cleaner"],
+    "shopeeUrl": "",
+    "lazadaUrl": ""
+  }
+]

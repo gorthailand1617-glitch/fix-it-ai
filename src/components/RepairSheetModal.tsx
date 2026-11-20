@@ -6,6 +6,7 @@ import {
   CheckCircle2,
   Circle,
   Copy,
+  ExternalLink,
   Package,
   Printer,
   ShieldAlert,
@@ -13,6 +14,11 @@ import {
   Wrench,
   X,
 } from "lucide-react";
+import {
+  buildLazadaAffiliateLink,
+  buildShopeeAffiliateLink,
+  hasActiveAffiliateConfig,
+} from "@/lib/affiliate";
 import {
   buildRepairSheetData,
   formatPartsListForCopy,
@@ -237,13 +243,44 @@ export default function RepairSheetModal({
                 {data.toolsNeeded.map((tool, idx) => (
                   <li
                     key={idx}
-                    className="rounded-lg border border-slate-200 px-3 py-2"
+                    className="rounded-lg border border-slate-200 px-3 py-2 flex flex-col justify-between gap-1.5"
                   >
-                    <div className="font-semibold text-slate-900">
-                      {tool.name}
-                      {tool.optional ? " (ถ้ามี)" : ""}
+                    <div>
+                      <div className="font-semibold text-slate-900">
+                        {tool.name}
+                        {tool.optional ? " (ถ้ามี)" : ""}
+                      </div>
+                      <div className="text-slate-600 mt-0.5">{tool.purpose}</div>
                     </div>
-                    <div className="text-slate-600 mt-0.5">{tool.purpose}</div>
+                    <div className="flex items-center gap-2 print:hidden">
+                      <a
+                        href={buildShopeeAffiliateLink(tool.name, {
+                          category: repairCase.category,
+                          itemType: "tool",
+                          source: "sheet",
+                        })}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1 text-[11px] font-semibold text-orange-600 hover:underline"
+                      >
+                        <span>Shopee</span>
+                        <ExternalLink className="w-2.5 h-2.5" />
+                      </a>
+                      <span className="text-slate-300">•</span>
+                      <a
+                        href={buildLazadaAffiliateLink(tool.name, {
+                          category: repairCase.category,
+                          itemType: "tool",
+                          source: "sheet",
+                        })}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1 text-[11px] font-semibold text-indigo-600 hover:underline"
+                      >
+                        <span>Lazada</span>
+                        <ExternalLink className="w-2.5 h-2.5" />
+                      </a>
+                    </div>
                   </li>
                 ))}
               </ul>
@@ -263,28 +300,67 @@ export default function RepairSheetModal({
                       <th className="px-3 py-2 font-semibold">สเปก / รหัส</th>
                       <th className="px-3 py-2 font-semibold">วิธีเช็กให้ตรงรุ่น</th>
                       <th className="px-3 py-2 font-semibold">ราคาประมาณ</th>
+                      <th className="px-3 py-2 font-semibold print:hidden">สั่งซื้อ</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
-                    {data.recommendedParts.map((part, idx) => (
-                      <tr key={idx}>
-                        <td className="px-3 py-2 font-semibold text-slate-900">
-                          {part.name}
-                        </td>
-                        <td className="px-3 py-2 font-mono text-slate-800">
-                          {part.specOrCode}
-                        </td>
-                        <td className="px-3 py-2 text-slate-600">
-                          {part.howToVerify}
-                        </td>
-                        <td className="px-3 py-2 text-emerald-800 font-semibold whitespace-nowrap">
-                          {part.estimatedPriceThb}
-                        </td>
-                      </tr>
-                    ))}
+                    {data.recommendedParts.map((part, idx) => {
+                      const searchKw = part.searchKeyword || part.name;
+                      return (
+                        <tr key={idx}>
+                          <td className="px-3 py-2 font-semibold text-slate-900">
+                            {part.name}
+                          </td>
+                          <td className="px-3 py-2 font-mono text-slate-800">
+                            {part.specOrCode}
+                          </td>
+                          <td className="px-3 py-2 text-slate-600">
+                            {part.howToVerify}
+                          </td>
+                          <td className="px-3 py-2 text-emerald-800 font-semibold whitespace-nowrap">
+                            {part.estimatedPriceThb}
+                          </td>
+                          <td className="px-3 py-2 whitespace-nowrap print:hidden">
+                            <div className="flex items-center gap-1.5">
+                              <a
+                                href={buildShopeeAffiliateLink(searchKw, {
+                                  category: repairCase.category,
+                                  itemType: "part",
+                                  source: "sheet",
+                                })}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="inline-flex items-center gap-1 px-2 py-1 rounded text-[11px] font-semibold bg-orange-600 text-white hover:bg-orange-700 transition-colors"
+                              >
+                                <span>Shopee</span>
+                                <ExternalLink className="w-2.5 h-2.5" />
+                              </a>
+                              <a
+                                href={buildLazadaAffiliateLink(searchKw, {
+                                  category: repairCase.category,
+                                  itemType: "part",
+                                  source: "sheet",
+                                })}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="inline-flex items-center gap-1 px-2 py-1 rounded text-[11px] font-semibold bg-indigo-600 text-white hover:bg-indigo-700 transition-colors"
+                              >
+                                <span>Lazada</span>
+                                <ExternalLink className="w-2.5 h-2.5" />
+                              </a>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
                   </tbody>
                 </table>
               </div>
+              {hasActiveAffiliateConfig() && (
+                <p className="text-[11px] text-slate-500 print:hidden">
+                  * ลิงก์สั่งซื้อบางรายการเป็นลิงก์ Affiliate เพื่อช่วยสนับสนุนผู้พัฒนา Fix it AI โดยไม่บวกราคาสินค้าเพิ่ม
+                </p>
+              )}
             </div>
           )}
         </div>

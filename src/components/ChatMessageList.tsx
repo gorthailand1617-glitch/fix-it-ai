@@ -16,11 +16,13 @@ import {
   ChatMessage,
   FileAttachment,
   LoadingProgress,
+  RepairCategory,
   RiskLevel,
 } from "@/types/repair";
 
 interface ChatMessageListProps {
   messages: ChatMessage[];
+  category?: RepairCategory;
   isLoading: boolean;
   loadingProgress?: LoadingProgress | null;
   completedSteps?: Record<string, boolean>;
@@ -78,6 +80,7 @@ function getMessageAttachments(msg: ChatMessage): FileAttachment[] {
 
 function ChatMessageList({
   messages,
+  category,
   isLoading,
   loadingProgress,
   completedSteps,
@@ -176,6 +179,7 @@ function ChatMessageList({
               {msg.diagnostic ? (
                 <DiagnosticCard
                   data={msg.diagnostic}
+                  category={category}
                   isDemo={msg.isDemo}
                   modelUsed={msg.modelUsed}
                   messageId={msg.id}

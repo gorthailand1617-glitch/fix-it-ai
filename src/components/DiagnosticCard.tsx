@@ -22,10 +22,11 @@ import {
   Volume2,
   Wrench,
 } from "lucide-react";
-import { DiagnosticResponse, RiskLevel } from "@/types/repair";
+import { DiagnosticResponse, RepairCategory, RiskLevel } from "@/types/repair";
 import {
   buildLazadaAffiliateLink,
   buildShopeeAffiliateLink,
+  hasActiveAffiliateConfig,
 } from "@/lib/affiliate";
 import { getModelDisplayName, isGemini4Model } from "@/lib/models";
 import {
@@ -37,6 +38,7 @@ import MermaidDiagram from "./MermaidDiagram";
 
 interface DiagnosticCardProps {
   data: DiagnosticResponse;
+  category?: RepairCategory;
   isDemo?: boolean;
   modelUsed?: string;
   messageId?: string;
@@ -92,6 +94,7 @@ const RISK_CONFIG: Record<
 
 function DiagnosticCard({
   data,
+  category,
   isDemo,
   modelUsed,
   messageId,
@@ -636,24 +639,31 @@ function DiagnosticCard({
                       </div>
                       <p className="text-slate-600 mt-0.5">{tool.purpose}</p>
                     </div>
-                    <div className="flex items-center gap-2 pt-0.5">
+                    <div className="flex flex-wrap items-center gap-1.5 pt-0.5">
                       <a
-                        href={buildShopeeAffiliateLink(tool.name)}
+                        href={buildShopeeAffiliateLink(tool.name, {
+                          category,
+                          itemType: "tool",
+                          source: "card",
+                        })}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="text-[11px] font-medium text-orange-600 hover:underline inline-flex items-center gap-0.5"
+                        className="inline-flex items-center gap-1 px-2 py-1 rounded-md text-[11px] font-semibold bg-orange-50 text-orange-700 border border-orange-200 hover:bg-orange-100 transition-colors"
                       >
-                        <span>Shopee</span>
+                        <span>เช็กราคา Shopee</span>
                         <ExternalLink className="w-2.5 h-2.5" />
                       </a>
-                      <span className="text-slate-300">•</span>
                       <a
-                        href={buildLazadaAffiliateLink(tool.name)}
+                        href={buildLazadaAffiliateLink(tool.name, {
+                          category,
+                          itemType: "tool",
+                          source: "card",
+                        })}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="text-[11px] font-medium text-indigo-600 hover:underline inline-flex items-center gap-0.5"
+                        className="inline-flex items-center gap-1 px-2 py-1 rounded-md text-[11px] font-semibold bg-indigo-50 text-indigo-700 border border-indigo-200 hover:bg-indigo-100 transition-colors"
                       >
-                        <span>Lazada</span>
+                        <span>เช็กราคา Lazada</span>
                         <ExternalLink className="w-2.5 h-2.5" />
                       </a>
                     </div>
@@ -705,21 +715,29 @@ function DiagnosticCard({
 
                     <div className="pt-1 flex flex-wrap gap-2">
                       <a
-                        href={buildShopeeAffiliateLink(part.searchKeyword)}
+                        href={buildShopeeAffiliateLink(part.searchKeyword, {
+                          category,
+                          itemType: "part",
+                          source: "card",
+                        })}
                         target="_blank"
                         rel="noopener noreferrer"
                         className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-medium bg-orange-600 text-white hover:bg-orange-700 transition-colors"
                       >
-                        <span>Shopee</span>
+                        <span>ซื้อบน Shopee</span>
                         <ExternalLink className="w-3 h-3" />
                       </a>
                       <a
-                        href={buildLazadaAffiliateLink(part.searchKeyword)}
+                        href={buildLazadaAffiliateLink(part.searchKeyword, {
+                          category,
+                          itemType: "part",
+                          source: "card",
+                        })}
                         target="_blank"
                         rel="noopener noreferrer"
                         className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-medium bg-indigo-600 text-white hover:bg-indigo-700 transition-colors"
                       >
-                        <span>Lazada</span>
+                        <span>ซื้อบน Lazada</span>
                         <ExternalLink className="w-3 h-3" />
                       </a>
                       <a
@@ -755,6 +773,12 @@ function DiagnosticCard({
                 ))}
               </div>
             </div>
+          )}
+
+          {hasActiveAffiliateConfig() && (
+            <p className="text-[11px] text-slate-500 pt-1">
+              * ลิงก์สั่งซื้อบางรายการเป็นลิงก์ Affiliate เพื่อช่วยสนับสนุนผู้พัฒนา Fix it AI โดยไม่บวกราคาสินค้าเพิ่ม
+            </p>
           )}
         </div>
       )}

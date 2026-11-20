@@ -1193,6 +1193,7 @@ export default function FixItWorkspace() {
                 {activeCase && activeCase.messages.length > 0 && (
                   <ChatMessageList
                     messages={activeCase.messages}
+                    category={activeCase.category}
                     isLoading={isLoading}
                     loadingProgress={loadingProgress}
                     completedSteps={activeCase.completedSteps}

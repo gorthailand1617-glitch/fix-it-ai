@@ -1,8 +1,10 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import {
+  buildAffiliateSubId,
   buildLazadaAffiliateLink,
   buildShopeeAffiliateLink,
+  hasActiveAffiliateConfig,
 } from "@/lib/affiliate";
 import { extractAndNormalizeDiagnostic } from "@/lib/diagnostic-schema";
 import {
@@ -39,65 +41,140 @@ import {
 } from "@/lib/repair-sheet";
 import { DiagnosticResponse, RepairCase } from "@/types/repair";
 
-describe("affiliate", () => {
-  it("builds default search links when templates are empty", () => {
-    const prevShopee = process.env.NEXT_PUBLIC_SHOPEE_AFFILIATE_TEMPLATE;
-    const prevLazada = process.env.NEXT_PUBLIC_LAZADA_AFFILIATE_TEMPLATE;
-    try {
-      delete process.env.NEXT_PUBLIC_SHOPEE_AFFILIATE_TEMPLATE;
-      delete process.env.NEXT_PUBLIC_LAZADA_AFFILIATE_TEMPLATE;
+const AFFILIATE_ENV_KEYS = [
+  "NEXT_PUBLIC_SHOPEE_AFFILIATE_TEMPLATE",
+  "NEXT_PUBLIC_LAZADA_AFFILIATE_TEMPLATE",
+  "NEXT_PUBLIC_SHOPEE_AFFILIATE_ID",
+  "NEXT_PUBLIC_LAZADA_ROOTLINK",
+  "NEXT_PUBLIC_AFFILIATE_SUB_ID",
+] as const;
 
+function withAffiliateEnv(
+  overrides: Partial<Record<(typeof AFFILIATE_ENV_KEYS)[number], string | undefined>>,
+  fn: () => void
+) {
+  const prev: Partial<Record<(typeof AFFILIATE_ENV_KEYS)[number], string | undefined>> = {};
+  for (const key of AFFILIATE_ENV_KEYS) {
+    prev[key] = process.env[key];
+    delete process.env[key];
+  }
+  for (const [key, val] of Object.entries(overrides)) {
+    if (val === undefined) {
+      delete process.env[key];
+    } else {
+      process.env[key] = val;
+    }
+  }
+  try {
+    fn();
+  } finally {
+    for (const key of AFFILIATE_ENV_KEYS) {
+      if (prev[key] !== undefined) {
+        process.env[key] = prev[key];
+      } else {
+        delete process.env[key];
+      }
+    }
+  }
+}
+
+describe("affiliate", () => {
+  it("builds default search links when templates and direct affiliate env vars are empty", () => {
+    withAffiliateEnv({}, () => {
       const shopee = buildShopeeAffiliateLink("แคปรันแอร์ 35uF");
       const lazada = buildLazadaAffiliateLink("แคปรันแอร์ 35uF");
 
       assert.ok(shopee.startsWith("https://shopee.co.th/search?keyword="));
       assert.ok(lazada.startsWith("https://www.lazada.co.th/catalog/?q="));
-    } finally {
-      if (prevShopee !== undefined) {
-        process.env.NEXT_PUBLIC_SHOPEE_AFFILIATE_TEMPLATE = prevShopee;
-      } else {
-        delete process.env.NEXT_PUBLIC_SHOPEE_AFFILIATE_TEMPLATE;
-      }
-      if (prevLazada !== undefined) {
-        process.env.NEXT_PUBLIC_LAZADA_AFFILIATE_TEMPLATE = prevLazada;
-      } else {
-        delete process.env.NEXT_PUBLIC_LAZADA_AFFILIATE_TEMPLATE;
-      }
-    }
+      assert.equal(hasActiveAffiliateConfig(), false);
+    });
   });
 
-  it("applies {url} and prefix templates and ignores invalid non-HTTP templates", () => {
-    const prevShopee = process.env.NEXT_PUBLIC_SHOPEE_AFFILIATE_TEMPLATE;
-    const prevLazada = process.env.NEXT_PUBLIC_LAZADA_AFFILIATE_TEMPLATE;
-    try {
-      process.env.NEXT_PUBLIC_SHOPEE_AFFILIATE_TEMPLATE =
-        "https://invl.io/abc?url={url}&kw={keyword}";
-      process.env.NEXT_PUBLIC_LAZADA_AFFILIATE_TEMPLATE =
-        "AQ.Ab8RN6invalidTokenNotUrl";
+  it("applies {url}, {subId}, and prefix templates and ignores invalid non-HTTP templates", () => {
+    withAffiliateEnv(
+      {
+        NEXT_PUBLIC_SHOPEE_AFFILIATE_TEMPLATE:
+          "https://invl.io/abc?url={url}&kw={keyword}&sub={subId}",
+        NEXT_PUBLIC_LAZADA_AFFILIATE_TEMPLATE: "AQ.Ab8RN6invalidTokenNotUrl",
+      },
+      () => {
+        const shopee = buildShopeeAffiliateLink("obd2", {
+          category: "automotive",
+          itemType: "tool",
+          source: "card",
+        });
+        const lazada = buildLazadaAffiliateLink("หัวเทียน");
 
-      const shopee = buildShopeeAffiliateLink("obd2");
-      const lazada = buildLazadaAffiliateLink("หัวเทียน");
+        assert.ok(shopee.startsWith("https://invl.io/abc?url="));
+        assert.ok(shopee.includes("&kw=obd2"));
+        assert.ok(shopee.includes("&sub=fixitai-automotive-tool-card"));
+        assert.ok(lazada.startsWith("https://www.lazada.co.th/catalog/?q="));
+        assert.equal(hasActiveAffiliateConfig(), true);
 
-      assert.ok(shopee.startsWith("https://invl.io/abc?url="));
-      assert.ok(shopee.includes("&kw=obd2"));
-      assert.ok(lazada.startsWith("https://www.lazada.co.th/catalog/?q="));
-
-      process.env.NEXT_PUBLIC_LAZADA_AFFILIATE_TEMPLATE =
-        "https://invl.io/laz?url=";
-      const lazadaPrefix = buildLazadaAffiliateLink("หัวเทียน");
-      assert.ok(lazadaPrefix.startsWith("https://invl.io/laz?url=https%3A%2F%2F"));
-    } finally {
-      if (prevShopee !== undefined) {
-        process.env.NEXT_PUBLIC_SHOPEE_AFFILIATE_TEMPLATE = prevShopee;
-      } else {
-        delete process.env.NEXT_PUBLIC_SHOPEE_AFFILIATE_TEMPLATE;
+        process.env.NEXT_PUBLIC_LAZADA_AFFILIATE_TEMPLATE =
+          "https://invl.io/laz?url=";
+        const lazadaPrefix = buildLazadaAffiliateLink("หัวเทียน");
+        assert.ok(
+          lazadaPrefix.startsWith("https://invl.io/laz?url=https%3A%2F%2F")
+        );
       }
-      if (prevLazada !== undefined) {
-        process.env.NEXT_PUBLIC_LAZADA_AFFILIATE_TEMPLATE = prevLazada;
-      } else {
-        delete process.env.NEXT_PUBLIC_LAZADA_AFFILIATE_TEMPLATE;
+    );
+  });
+
+  it("builds direct Shopee an_redir and Lazada rootlink URLs with sub_id and validates inputs", () => {
+    withAffiliateEnv(
+      {
+        NEXT_PUBLIC_SHOPEE_AFFILIATE_ID: "14354840000",
+        NEXT_PUBLIC_LAZADA_ROOTLINK: "https://c.lazada.co.th/t/c.abc123",
+        NEXT_PUBLIC_AFFILIATE_SUB_ID: "my-shop_01!",
+      },
+      () => {
+        assert.equal(
+          buildAffiliateSubId({
+            category: "automotive",
+            itemType: "part",
+            source: "card",
+          }),
+          "myshop_01-automotive-part-card"
+        );
+
+        const shopee = buildShopeeAffiliateLink("หัวเทียนอิริเดียม", {
+          category: "automotive",
+          itemType: "part",
+          source: "card",
+        });
+        assert.ok(
+          shopee.startsWith("https://s.shopee.co.th/an_redir?origin_link=")
+        );
+        assert.ok(shopee.includes("&affiliate_id=14354840000"));
+        assert.ok(shopee.includes("&sub_id=myshop_01-automotive-part-card"));
+
+        const lazada = buildLazadaAffiliateLink("มัลติมิเตอร์", {
+          category: "appliance",
+          itemType: "tool",
+          source: "sheet",
+        });
+        assert.ok(
+          lazada.startsWith("https://c.lazada.co.th/t/c.abc123?url=https%3A%2F%2F")
+        );
+        assert.ok(lazada.includes("&sub_id=myshop_01-appliance-tool-sheet"));
+        assert.equal(hasActiveAffiliateConfig(), true);
       }
-    }
+    );
+
+    withAffiliateEnv(
+      {
+        NEXT_PUBLIC_SHOPEE_AFFILIATE_ID: "x",
+        NEXT_PUBLIC_LAZADA_ROOTLINK: "javascript:alert(1)",
+      },
+      () => {
+        const shopee = buildShopeeAffiliateLink("มัลติมิเตอร์");
+        const lazada = buildLazadaAffiliateLink("มัลติมิเตอร์");
+        assert.ok(shopee.startsWith("https://shopee.co.th/search?keyword="));
+        assert.ok(lazada.startsWith("https://www.lazada.co.th/catalog/?q="));
+        assert.equal(hasActiveAffiliateConfig(), false);
+      }
+    );
   });
 });
 
