@@ -66,7 +66,7 @@ function WizardPanel({
       }`}
     >
       {/* Header & Tabs */}
-      <div className="shrink-0 bg-orange-50/90 border-b border-orange-200/80 px-4 py-3 space-y-2.5">
+      <div className="shrink-0 bg-orange-50/90 border-b border-orange-200/80 px-3.5 py-2.5 sm:px-4 sm:py-3 space-y-2 sm:space-y-2.5">
         <div className="flex items-center justify-between gap-2">
           <span className="inline-flex items-center gap-1.5 rounded-full bg-orange-600/10 border border-orange-200 px-2.5 py-0.5 text-[11px] font-bold text-orange-800">
             {answeredCount === 0 && (
@@ -127,7 +127,7 @@ function WizardPanel({
       </div>
 
       {/* Scrollable Question Body */}
-      <div className="flex-1 min-h-0 overflow-y-auto p-4 space-y-3">
+      <div className="flex-1 min-h-0 overflow-y-auto p-3.5 sm:p-4 space-y-2.5 sm:space-y-3">
         <p className="text-sm font-semibold text-slate-900 leading-relaxed">
           {currentQ.question}
         </p>
@@ -219,7 +219,7 @@ function WizardPanel({
       </div>
 
       {/* Bottom Sticky Action Bar */}
-      <div className="shrink-0 border-t border-slate-200 bg-slate-50/90 px-4 py-3 flex items-center justify-between gap-2">
+      <div className="shrink-0 border-t border-slate-200 bg-slate-50/90 px-3.5 pt-2.5 pb-[max(0.625rem,env(safe-area-inset-bottom))] sm:px-4 sm:py-3 flex items-center justify-between gap-2">
         <div className="text-[11px] text-slate-500">
           ตอบแล้ว {answeredCount} / {questions.length} ข้อ
         </div>

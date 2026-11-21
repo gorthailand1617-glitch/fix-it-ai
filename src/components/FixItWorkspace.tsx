@@ -5,6 +5,7 @@ import {
   ClipboardCheck,
   HelpCircle,
   Menu,
+  SlidersHorizontal,
   Sparkles,
   UploadCloud,
   Warehouse,
@@ -96,6 +97,7 @@ export default function FixItWorkspace() {
   >(null);
   const [mobilePane, setMobilePane] = useState<"guide" | "wizard">("guide");
   const [wizardHighlighted, setWizardHighlighted] = useState(false);
+  const [showMobileSettings, setShowMobileSettings] = useState(false);
   const [toasts, setToasts] = useState<ToastItem[]>([]);
 
   const [lightboxImage, setLightboxImage] = useState<{
@@ -978,7 +980,7 @@ export default function FixItWorkspace() {
   return (
     <>
       <div
-        className={`flex h-screen overflow-hidden bg-slate-50 ${
+        className={`flex h-dvh overflow-hidden bg-slate-50 ${
           showRepairSheet || showGarageModal ? "print:hidden" : ""
         }`}
       >
@@ -1016,17 +1018,17 @@ export default function FixItWorkspace() {
             </div>
           )}
 
-          <header className="h-14 bg-white border-b border-slate-200 px-4 flex items-center justify-between gap-2 shrink-0">
-            <div className="flex items-center gap-2.5 min-w-0">
+          <header className="h-12 md:h-14 bg-white border-b border-slate-200 px-3 md:px-4 flex items-center justify-between gap-2 shrink-0">
+            <div className="flex items-center gap-2 min-w-0 flex-1">
               <button
                 type="button"
                 onClick={() => setSidebarOpen(true)}
-                className="p-2 -ml-2 rounded-lg text-slate-600 hover:bg-slate-100 lg:hidden shrink-0"
+                className="p-1.5 -ml-1 rounded-lg text-slate-600 hover:bg-slate-100 lg:hidden shrink-0"
                 aria-label="เปิดแถบเมนูเคสซ่อม"
               >
                 <Menu className="w-5 h-5" />
               </button>
-              <span className="font-bold text-sm sm:text-base text-slate-900 truncate max-w-[140px] sm:max-w-xs">
+              <span className="font-bold text-sm sm:text-base text-slate-900 truncate min-w-0 flex-1 md:flex-none md:max-w-[200px] lg:max-w-xs">
                 {activeCase?.title || "Fix it AI"}
               </span>
 
@@ -1037,7 +1039,7 @@ export default function FixItWorkspace() {
                   onChange={(e) =>
                     handleChangeCaseStatus(e.target.value as CaseStatus)
                   }
-                  className={`rounded-full border px-2.5 py-0.5 text-[11px] font-semibold focus:outline-none focus:ring-2 focus:ring-orange-400 cursor-pointer ${statusMeta.badgeClass}`}
+                  className={`hidden md:block rounded-full border px-2.5 py-0.5 text-[11px] font-semibold focus:outline-none focus:ring-2 focus:ring-orange-400 cursor-pointer shrink-0 ${statusMeta.badgeClass}`}
                 >
                   <option value="diagnosing">กำลังตรวจเช็ก</option>
                   <option value="waiting_parts">รออะไหล่</option>
@@ -1046,7 +1048,7 @@ export default function FixItWorkspace() {
               )}
             </div>
 
-            <div className="flex items-center gap-2 shrink-0">
+            <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
               <select
                 aria-label="เลือกรุ่นโมเดล Gemini"
                 value={modelProfile}
@@ -1054,7 +1056,7 @@ export default function FixItWorkspace() {
                   handleChangeModelProfile(e.target.value as ModelProfileId)
                 }
                 title="เลือกรุ่นโมเดล AI (ค่าเริ่มต้นใช้ Gemini 4)"
-                className="rounded-lg border border-slate-200 bg-slate-100 px-2 py-1 text-[11px] font-semibold text-slate-700 hover:border-orange-300 focus:outline-none focus:ring-2 focus:ring-orange-400 cursor-pointer"
+                className="hidden md:block rounded-lg border border-slate-200 bg-slate-100 px-2 py-1 text-[11px] font-semibold text-slate-700 hover:border-orange-300 focus:outline-none focus:ring-2 focus:ring-orange-400 cursor-pointer"
               >
                 {GEMINI_MODEL_OPTIONS.map((opt) => (
                   <option key={opt.id} value={opt.id}>
@@ -1064,7 +1066,7 @@ export default function FixItWorkspace() {
               </select>
 
               <div
-                className="inline-flex items-center rounded-lg border border-slate-200 bg-slate-100 p-0.5 text-[11px] font-semibold"
+                className="hidden md:inline-flex items-center rounded-lg border border-slate-200 bg-slate-100 p-0.5 text-[11px] font-semibold"
                 role="group"
                 aria-label="ระดับคำอธิบายของ AI"
               >
@@ -1101,7 +1103,7 @@ export default function FixItWorkspace() {
                     setWizardDismissedForMsgId(null);
                     setMobilePane("wizard");
                   }}
-                  className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-orange-50 text-orange-700 border border-orange-200 hover:bg-orange-100 transition-colors"
+                  className="inline-flex items-center gap-1.5 px-2 sm:px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-orange-50 text-orange-700 border border-orange-200 hover:bg-orange-100 transition-colors"
                   title="เปิดช่องตอบคำถามช่วยวิเคราะห์"
                 >
                   <HelpCircle className="w-3.5 h-3.5" />
@@ -1113,13 +1115,32 @@ export default function FixItWorkspace() {
                 <button
                   type="button"
                   onClick={() => setShowRepairSheet(true)}
-                  className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-slate-900 text-white hover:bg-slate-800 transition-colors"
+                  className="inline-flex items-center gap-1.5 px-2 sm:px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-slate-900 text-white hover:bg-slate-800 transition-colors"
                 >
                   <ClipboardCheck className="w-3.5 h-3.5 text-orange-400" />
                   <span className="hidden sm:inline">ใบสรุปส่งช่าง</span>
                   <span className="sm:hidden">สรุป</span>
                 </button>
               )}
+
+              <button
+                type="button"
+                onClick={() => setShowMobileSettings((v) => !v)}
+                aria-label="ตั้งค่าโหมดและโมเดล"
+                aria-expanded={showMobileSettings}
+                title="ตั้งค่าสถานะ โมเดล และโหมดคำอธิบาย"
+                className={`relative md:hidden p-1.5 rounded-lg border transition-colors ${
+                  showMobileSettings
+                    ? "bg-orange-50 text-orange-700 border-orange-300"
+                    : "bg-slate-100 text-slate-600 border-slate-200 hover:bg-slate-200"
+                }`}
+              >
+                <SlidersHorizontal className="w-4 h-4" />
+                {(explanationMode === "technician" || modelProfile !== "auto") &&
+                  !showMobileSettings && (
+                    <span className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-orange-600" />
+                  )}
+              </button>
 
               <span className="hidden xl:inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-orange-50 text-orange-800 border border-orange-200">
                 <Sparkles className="w-3.5 h-3.5 text-orange-600" />
@@ -1128,8 +1149,73 @@ export default function FixItWorkspace() {
             </div>
           </header>
 
+          {showMobileSettings && (
+            <div className="md:hidden border-b border-slate-200 bg-slate-50/95 px-3 py-2 shrink-0">
+              <div className="flex flex-wrap items-center gap-2">
+                {activeCase && (
+                  <select
+                    aria-label="สถานะเคสซ่อม"
+                    value={currentStatus}
+                    onChange={(e) =>
+                      handleChangeCaseStatus(e.target.value as CaseStatus)
+                    }
+                    className={`rounded-lg border px-2 py-1 text-[11px] font-semibold focus:outline-none focus:ring-2 focus:ring-orange-400 cursor-pointer ${statusMeta.badgeClass}`}
+                  >
+                    <option value="diagnosing">กำลังตรวจเช็ก</option>
+                    <option value="waiting_parts">รออะไหล่</option>
+                    <option value="resolved">ซ่อมเสร็จแล้ว</option>
+                  </select>
+                )}
+
+                <select
+                  aria-label="เลือกรุ่นโมเดล Gemini"
+                  value={modelProfile}
+                  onChange={(e) =>
+                    handleChangeModelProfile(e.target.value as ModelProfileId)
+                  }
+                  className="rounded-lg border border-slate-200 bg-white px-2 py-1 text-[11px] font-semibold text-slate-700 focus:outline-none focus:ring-2 focus:ring-orange-400 cursor-pointer"
+                >
+                  {GEMINI_MODEL_OPTIONS.map((opt) => (
+                    <option key={opt.id} value={opt.id}>
+                      {opt.shortLabel}
+                    </option>
+                  ))}
+                </select>
+
+                <div
+                  className="inline-flex items-center rounded-lg border border-slate-200 bg-white p-0.5 text-[11px] font-semibold ml-auto"
+                  role="group"
+                  aria-label="ระดับคำอธิบายของ AI"
+                >
+                  <button
+                    type="button"
+                    onClick={() => handleChangeExplanationMode("beginner")}
+                    className={`px-2 py-1 rounded-md transition-colors ${
+                      explanationMode === "beginner"
+                        ? "bg-slate-900 text-white"
+                        : "text-slate-600"
+                    }`}
+                  >
+                    มือใหม่
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleChangeExplanationMode("technician")}
+                    className={`px-2 py-1 rounded-md transition-colors ${
+                      explanationMode === "technician"
+                        ? "bg-orange-600 text-white"
+                        : "text-slate-600"
+                    }`}
+                  >
+                    โหมดช่าง
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
           {activeCase?.assetSummary && (
-            <div className="bg-orange-50/70 border-b border-orange-100 px-4 py-1.5 text-xs text-orange-900 flex items-center gap-2 shrink-0">
+            <div className="bg-orange-50/70 border-b border-orange-100 px-3 sm:px-4 py-1.5 text-xs text-orange-900 flex items-center gap-2 shrink-0">
               <Warehouse className="w-3.5 h-3.5 text-orange-600 shrink-0" />
               <span className="truncate">
                 <span className="font-semibold">อุปกรณ์ที่ผูกกับเคสนี้: </span>
@@ -1139,23 +1225,23 @@ export default function FixItWorkspace() {
           )}
 
           {hasActiveWizard && (
-            <div className="md:hidden border-b border-slate-200 bg-white px-3 py-2 shrink-0">
-              <div className="grid grid-cols-2 gap-1.5 rounded-xl bg-slate-100 p-1">
+            <div className="md:hidden border-b border-slate-200 bg-white px-2.5 py-1.5 shrink-0">
+              <div className="grid grid-cols-2 gap-1 rounded-xl bg-slate-100 p-1">
                 <button
                   type="button"
                   onClick={() => setMobilePane("guide")}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
+                  className={`px-2.5 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap truncate transition-colors ${
                     effectiveMobilePane === "guide"
                       ? "bg-white text-slate-900 shadow-2xs"
                       : "text-slate-600 hover:text-slate-900"
                   }`}
                 >
-                  แนวทางการตรวจเช็ก
+                  แนวทางตรวจเช็ก
                 </button>
                 <button
                   type="button"
                   onClick={() => setMobilePane("wizard")}
-                  className={`inline-flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
+                  className={`inline-flex items-center justify-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap truncate transition-colors ${
                     effectiveMobilePane === "wizard"
                       ? "bg-orange-600 text-white shadow-2xs"
                       : "text-slate-600 hover:text-slate-900"
@@ -1164,7 +1250,7 @@ export default function FixItWorkspace() {
                   {effectiveMobilePane !== "wizard" && (
                     <span className="w-2 h-2 rounded-full bg-orange-600 animate-pulse shrink-0" />
                   )}
-                  <span>ตอบคำถามช่วยวิเคราะห์ ({activeWizardQuestions.length})</span>
+                  <span>ตอบคำถาม ({activeWizardQuestions.length})</span>
                 </button>
               </div>
             </div>
@@ -1172,13 +1258,13 @@ export default function FixItWorkspace() {
 
           <div className="flex-1 min-h-0 flex flex-col md:flex-row overflow-hidden">
             <main
-              className={`flex-1 min-w-0 min-h-0 overflow-y-auto px-4 sm:px-5 py-5 ${
+              className={`flex-1 min-w-0 min-h-0 overflow-y-auto px-2.5 sm:px-5 py-3 sm:py-5 ${
                 hasActiveWizard && effectiveMobilePane === "wizard"
                   ? "hidden md:block"
                   : "block"
               }`}
             >
-              <div className="max-w-3xl mx-auto space-y-6">
+              <div className="max-w-3xl mx-auto space-y-4 sm:space-y-6">
                 {(!activeCase || activeCase.messages.length === 0) && (
                   <WelcomeScreen
                     assets={assets}
@@ -1222,7 +1308,7 @@ export default function FixItWorkspace() {
                 ref={wizardAsideRef}
                 tabIndex={-1}
                 aria-label="ตอบคำถามช่วยวิเคราะห์"
-                className={`flex-1 min-h-0 md:flex-none md:w-[320px] lg:w-[360px] xl:w-[400px] shrink-0 md:border-l-2 md:border-orange-200/80 md:shadow-[-6px_0_20px_-12px_rgba(234,88,12,0.22)] bg-white outline-none ${
+                className={`flex-1 min-h-0 md:flex-none md:w-[300px] lg:w-[350px] xl:w-[390px] shrink-0 md:border-l-2 md:border-orange-200/80 md:shadow-[-6px_0_20px_-12px_rgba(234,88,12,0.22)] bg-white outline-none ${
                   effectiveMobilePane === "wizard"
                     ? "flex flex-col"
                     : "hidden md:flex md:flex-col"
@@ -1241,6 +1327,11 @@ export default function FixItWorkspace() {
           </div>
 
           <ChatComposer
+            className={
+              hasActiveWizard && effectiveMobilePane === "wizard"
+                ? "hidden md:block"
+                : undefined
+            }
             input={input}
             onInputChange={setInput}
             textareaRef={textareaRef}

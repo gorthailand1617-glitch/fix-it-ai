@@ -112,7 +112,7 @@ function ChatMessageList({
 
           return (
             <div key={msg.id} className="flex justify-end">
-              <div className="max-w-[85%] sm:max-w-[75%] rounded-2xl rounded-tr-xs bg-slate-900 text-white px-4 py-3 shadow-xs space-y-2">
+              <div className="max-w-[90%] sm:max-w-[75%] rounded-2xl rounded-tr-xs bg-slate-900 text-white px-3.5 py-2.5 sm:px-4 sm:py-3 shadow-xs space-y-2">
                 {images.length > 0 && (
                   <div
                     className={`grid gap-2 ${
@@ -175,7 +175,7 @@ function ChatMessageList({
 
         return (
           <div key={msg.id} className="flex justify-start">
-            <div className="w-full rounded-2xl border border-slate-200 bg-white p-4 sm:p-5 shadow-xs">
+            <div className="w-full rounded-xl sm:rounded-2xl border border-slate-200 bg-white p-3 sm:p-5 shadow-xs">
               {msg.diagnostic ? (
                 <DiagnosticCard
                   data={msg.diagnostic}

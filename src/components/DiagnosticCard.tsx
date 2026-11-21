@@ -158,10 +158,10 @@ function DiagnosticCard({
       : 0;
 
   return (
-    <div className="space-y-4 text-slate-800">
+    <div className="space-y-3 sm:space-y-4 text-slate-800">
       {/* Headline, TTS & Demo tag */}
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <h3 className="text-base sm:text-lg font-bold text-slate-900 leading-snug flex-1 min-w-[200px]">
+        <h3 className="text-base sm:text-lg font-bold text-slate-900 leading-snug flex-1 min-w-0">
           {data.headline}
         </h3>
         <div className="flex items-center gap-2 shrink-0">
@@ -219,7 +219,7 @@ function DiagnosticCard({
 
       {/* Safety Gatekeeper Banner */}
       <div
-        className={`rounded-xl border ${risk.border} ${risk.bg} p-3.5 space-y-2.5`}
+        className={`rounded-xl border ${risk.border} ${risk.bg} p-3 sm:p-3.5 space-y-2.5`}
       >
         <div className="flex items-start gap-3">
           <div className={`p-1.5 rounded-lg shrink-0 ${risk.badge}`}>
@@ -271,7 +271,7 @@ function DiagnosticCard({
 
       {/* Top Guided Call-to-Action for Helper Wizard */}
       {showWizardCta && (
-        <div className="rounded-xl border border-orange-200 bg-orange-50/80 px-3.5 py-2.5 flex flex-wrap items-center justify-between gap-2.5">
+        <div className="rounded-xl border border-orange-200 bg-orange-50/80 px-3 py-2.5 sm:px-3.5 flex flex-wrap items-center justify-between gap-2.5">
           <div className="flex items-start gap-2.5 min-w-0 flex-1">
             <div className="p-1.5 rounded-lg bg-orange-600 text-white shrink-0 mt-0.5">
               <HelpCircle className="w-3.5 h-3.5" />
@@ -363,7 +363,7 @@ function DiagnosticCard({
             return (
               <div
                 key={step.stepNumber}
-                className={`rounded-xl border p-4 shadow-xs space-y-2.5 transition-colors ${
+                className={`rounded-xl border p-3 sm:p-4 shadow-xs space-y-2.5 transition-colors ${
                   isDone
                     ? "border-emerald-200 bg-emerald-50/30"
                     : "border-slate-200 bg-white"
@@ -547,7 +547,7 @@ function DiagnosticCard({
 
       {/* Visual References: Videos & Example Images */}
       {data.visualReferences && data.visualReferences.length > 0 && (
-        <div className="rounded-xl border border-slate-200 bg-slate-50/70 p-4 space-y-3">
+        <div className="rounded-xl border border-slate-200 bg-slate-50/70 p-3 sm:p-4 space-y-3">
           <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-slate-700">
             <PlayCircle className="w-4 h-4 text-rose-600" />
             <span>ตัวอย่างวิดีโอและภาพประกอบวิธีทำ (กดเปิดดูเทียบหน้างาน)</span>
@@ -610,7 +610,7 @@ function DiagnosticCard({
       {/* Tools & Recommended Spare Parts */}
       {((data.toolsNeeded && data.toolsNeeded.length > 0) ||
         (data.recommendedParts && data.recommendedParts.length > 0)) && (
-        <div className="rounded-xl border border-orange-200 bg-orange-50/40 p-4 space-y-4">
+        <div className="rounded-xl border border-orange-200 bg-orange-50/40 p-3 sm:p-4 space-y-3 sm:space-y-4">
           <div className="flex items-center gap-2 text-sm font-bold text-slate-900">
             <ShoppingBag className="w-4 h-4 text-orange-600" />
             <span>เครื่องมือและอะไหล่ที่แนะนำ</span>
@@ -668,7 +668,7 @@ function DiagnosticCard({
                 {data.recommendedParts.map((part, i) => (
                   <div
                     key={i}
-                    className="rounded-xl bg-white border border-slate-200 p-3.5 space-y-2 shadow-2xs"
+                    className="rounded-xl bg-white border border-slate-200 p-3 sm:p-3.5 space-y-2 shadow-2xs"
                   >
                     <div className="flex flex-wrap items-start justify-between gap-2">
                       <div className="flex items-center gap-2">
@@ -687,7 +687,7 @@ function DiagnosticCard({
                         <span className="font-semibold text-slate-800">
                           สเปก / รหัสที่ต้องดู:{" "}
                         </span>
-                        <span className="font-mono bg-slate-100 px-1.5 py-0.5 rounded text-slate-900">
+                        <span className="font-mono bg-slate-100 px-1.5 py-0.5 rounded text-slate-900 break-words">
                           {part.specOrCode}
                         </span>
                       </div>
@@ -758,8 +758,8 @@ function DiagnosticCard({
 
       {/* Closing Prompt */}
       {(data.closingPrompt || showWizardCta) && (
-        <div className="bg-slate-100/80 rounded-xl px-3.5 py-2.5 border border-slate-200 flex flex-wrap items-center justify-between gap-2.5">
-          <p className="text-xs sm:text-sm text-slate-700 font-medium flex-1 min-w-[200px]">
+        <div className="bg-slate-100/80 rounded-xl px-3 py-2.5 sm:px-3.5 border border-slate-200 flex flex-wrap items-center justify-between gap-2.5">
+          <p className="text-xs sm:text-sm text-slate-700 font-medium flex-1 min-w-0">
             💡{" "}
             {data.closingPrompt ||
               "กดเลือกคำตอบในช่อง 'ตอบคำถามช่วยวิเคราะห์' ด้านขวาเพื่อให้ AI วิเคราะห์ขั้นตอนถัดไปได้แม่นยำขึ้น"}

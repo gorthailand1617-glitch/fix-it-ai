@@ -31,6 +31,7 @@ interface ChatComposerProps {
   onSend: (overrideText?: string) => void;
   isLoading: boolean;
   hasMessages: boolean;
+  className?: string;
 }
 
 const emptySubscribe = () => () => {};
@@ -53,6 +54,7 @@ export default function ChatComposer({
   onSend,
   isLoading,
   hasMessages,
+  className,
 }: ChatComposerProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const cameraInputRef = useRef<HTMLInputElement>(null);
@@ -149,9 +151,13 @@ export default function ChatComposer({
   };
 
   return (
-    <footer className="bg-white border-t border-slate-200 px-4 py-2.5 shrink-0">
-      <div className="max-w-4xl mx-auto space-y-2.5">
-        {hasMessages && (
+    <footer
+      className={`bg-white border-t border-slate-200 px-2.5 sm:px-4 pt-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] sm:py-2.5 shrink-0 ${
+        className || ""
+      }`}
+    >
+      <div className="max-w-4xl mx-auto space-y-1.5 sm:space-y-2">
+        {hasMessages && !input.trim() && (
           <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar">
             {QUICK_CHIPS.map((chip) => (
               <button
@@ -244,7 +250,7 @@ export default function ChatComposer({
           </div>
         )}
 
-        <div className="flex items-end gap-1.5 rounded-2xl border border-slate-300 bg-slate-50 px-2.5 py-2 focus-within:border-orange-500 focus-within:bg-white focus-within:ring-2 focus-within:ring-orange-500/20 transition-all">
+        <div className="flex items-end gap-1 sm:gap-1.5 rounded-2xl border border-slate-300 bg-slate-50 px-2 py-1.5 sm:px-2.5 sm:py-2 focus-within:border-orange-500 focus-within:bg-white focus-within:ring-2 focus-within:ring-orange-500/20 transition-all">
           <input
             ref={fileInputRef}
             id="fixit-file-upload"
@@ -266,7 +272,7 @@ export default function ChatComposer({
 
           <label
             htmlFor="fixit-camera-upload"
-            className={`p-2 rounded-xl text-slate-500 hover:text-orange-600 hover:bg-orange-50 transition-colors shrink-0 cursor-pointer ${
+            className={`p-1.5 sm:p-2 rounded-xl text-slate-500 hover:text-orange-600 hover:bg-orange-50 transition-colors shrink-0 cursor-pointer ${
               isLoading ? "pointer-events-none opacity-40" : ""
             }`}
             title="ถ่ายรูปหน้างานทันที"
@@ -276,7 +282,7 @@ export default function ChatComposer({
 
           <label
             htmlFor="fixit-file-upload"
-            className={`p-2 rounded-xl text-slate-500 hover:text-orange-600 hover:bg-orange-50 transition-colors shrink-0 cursor-pointer ${
+            className={`p-1.5 sm:p-2 rounded-xl text-slate-500 hover:text-orange-600 hover:bg-orange-50 transition-colors shrink-0 cursor-pointer ${
               isLoading ? "pointer-events-none opacity-40" : ""
             }`}
             title="แนบไฟล์ได้หลายไฟล์พร้อมกัน: รูปภาพ, PDF คู่มือ, ไฟล์ Log (.txt/.csv/.json), เสียง หรือวิดีโอ"
@@ -296,8 +302,8 @@ export default function ChatComposer({
                 triggerSend();
               }
             }}
-            placeholder="พิมพ์อาการ, พูดด้วยเสียง, วางรูป (Ctrl+V) หรือถ่ายรูปส่งมาได้เลย..."
-            className="flex-1 bg-transparent py-2 px-1 text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none resize-none max-h-36"
+            placeholder="พิมพ์อาการ หรือถ่ายรูปส่งมา..."
+            className="flex-1 min-w-0 bg-transparent py-1.5 sm:py-2 px-1 text-sm leading-snug text-slate-900 placeholder:text-slate-400 focus:outline-none resize-none max-h-36"
           />
 
           {sttSupported && (
@@ -305,7 +311,7 @@ export default function ChatComposer({
               type="button"
               disabled={isLoading}
               onClick={handleToggleVoice}
-              className={`p-2 rounded-xl transition-colors shrink-0 ${
+              className={`p-1.5 sm:p-2 rounded-xl transition-colors shrink-0 ${
                 isListening
                   ? "bg-rose-600 text-white hover:bg-rose-700"
                   : "text-slate-500 hover:text-orange-600 hover:bg-orange-50"
@@ -325,14 +331,14 @@ export default function ChatComposer({
             type="button"
             disabled={isLoading || (!input.trim() && attachments.length === 0)}
             onClick={() => triggerSend()}
-            className="p-2 rounded-xl bg-orange-600 text-white hover:bg-orange-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors shrink-0"
+            className="p-1.5 sm:p-2 rounded-xl bg-orange-600 text-white hover:bg-orange-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors shrink-0"
             title="ส่ง"
           >
             <Send className="w-4 h-4" />
           </button>
         </div>
 
-        <div className="flex items-center justify-between text-[11px] text-slate-400 px-1">
+        <div className="hidden sm:flex items-center justify-between text-[11px] text-slate-400 px-1">
           <span>
             * ตรวจสอบความปลอดภัยก่อนลงมือซ่อมทุกครั้ง
             หากเสี่ยงอันตรายควรเรียกช่างผู้เชี่ยวชาญ
