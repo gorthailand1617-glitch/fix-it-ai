@@ -7,7 +7,6 @@ export interface CuratedAffiliateItem {
   category?: RepairCategory;
   keywords: string[];
   shopeeUrl?: string;
-  lazadaUrl?: string;
 }
 
 export interface AffiliateLinkOptions {
@@ -19,8 +18,8 @@ export interface AffiliateLinkOptions {
 const SHOPEE_AFFILIATE_ID_PATTERN = /^[a-zA-Z0-9_-]{3,40}$/;
 
 /**
- * รายการสินค้าแนะนำแบบเจาะจง (Curated Affiliate Links)
- * แก้ไขหรือเพิ่มลิงก์สั้น Affiliate ของคุณ (เช่น https://s.shopee.co.th/xxxx หรือ https://s.lazada.co.th/s.xxxx)
+ * รายการสินค้าแนะนำแบบเจาะจง (Curated Affiliate Links สำหรับ Shopee)
+ * แก้ไขหรือเพิ่มลิงก์สั้น Affiliate ของคุณ (เช่น https://s.shopee.co.th/xxxx)
  * ได้โดยตรงที่ src/data/affiliate-products.json
  */
 export const CURATED_AFFILIATE_LINKS: CuratedAffiliateItem[] =
@@ -34,15 +33,11 @@ function isValidShopeeAffiliateId(value: string | undefined): value is string {
   return Boolean(value && SHOPEE_AFFILIATE_ID_PATTERN.test(value.trim()));
 }
 
-function findCuratedLink(
-  keyword: string,
-  platform: "shopee" | "lazada"
-): string | null {
+function findCuratedLink(keyword: string): string | null {
   const lower = keyword.toLowerCase();
   for (const item of CURATED_AFFILIATE_LINKS) {
     if (item.keywords.some((kw) => lower.includes(kw.toLowerCase()))) {
-      const url = platform === "shopee" ? item.shopeeUrl : item.lazadaUrl;
-      if (isValidHttpUrl(url)) return url.trim();
+      if (isValidHttpUrl(item.shopeeUrl)) return item.shopeeUrl.trim();
     }
   }
   return null;
@@ -83,7 +78,7 @@ export function buildShopeeAffiliateLink(
   keyword: string,
   options?: AffiliateLinkOptions
 ): string {
-  const curated = findCuratedLink(keyword, "shopee");
+  const curated = findCuratedLink(keyword);
   if (curated) return curated;
 
   const baseSearchUrl = `https://shopee.co.th/search?keyword=${encodeURIComponent(
@@ -108,58 +103,13 @@ export function buildShopeeAffiliateLink(
   return baseSearchUrl;
 }
 
-export function buildLazadaAffiliateLink(
-  keyword: string,
-  options?: AffiliateLinkOptions
-): string {
-  const curated = findCuratedLink(keyword, "lazada");
-  if (curated) return curated;
-
-  const baseSearchUrl = `https://www.lazada.co.th/catalog/?q=${encodeURIComponent(
-    keyword
-  )}`;
-  const subId = buildAffiliateSubId(options);
-
-  const template = process.env.NEXT_PUBLIC_LAZADA_AFFILIATE_TEMPLATE;
-  if (isValidHttpUrl(template)) {
-    return applyTemplate(template, baseSearchUrl, keyword, subId);
-  }
-
-  const rootlink = process.env.NEXT_PUBLIC_LAZADA_ROOTLINK;
-  if (isValidHttpUrl(rootlink)) {
-    const trimmed = rootlink.trim();
-    if (
-      trimmed.includes("{url}") ||
-      trimmed.includes("{keyword}") ||
-      trimmed.includes("{subId}")
-    ) {
-      return applyTemplate(trimmed, baseSearchUrl, keyword, subId);
-    }
-    if (trimmed.endsWith("url=")) {
-      return `${trimmed}${encodeURIComponent(
-        baseSearchUrl
-      )}&sub_id=${encodeURIComponent(subId)}`;
-    }
-    const separator = trimmed.includes("?") ? "&" : "?";
-    return `${trimmed}${separator}url=${encodeURIComponent(
-      baseSearchUrl
-    )}&sub_id=${encodeURIComponent(subId)}`;
-  }
-
-  return baseSearchUrl;
-}
-
 export function hasActiveAffiliateConfig(): boolean {
   if (
     isValidHttpUrl(process.env.NEXT_PUBLIC_SHOPEE_AFFILIATE_TEMPLATE) ||
-    isValidShopeeAffiliateId(process.env.NEXT_PUBLIC_SHOPEE_AFFILIATE_ID) ||
-    isValidHttpUrl(process.env.NEXT_PUBLIC_LAZADA_AFFILIATE_TEMPLATE) ||
-    isValidHttpUrl(process.env.NEXT_PUBLIC_LAZADA_ROOTLINK)
+    isValidShopeeAffiliateId(process.env.NEXT_PUBLIC_SHOPEE_AFFILIATE_ID)
   ) {
     return true;
   }
 
-  return CURATED_AFFILIATE_LINKS.some(
-    (item) => isValidHttpUrl(item.shopeeUrl) || isValidHttpUrl(item.lazadaUrl)
-  );
+  return CURATED_AFFILIATE_LINKS.some((item) => isValidHttpUrl(item.shopeeUrl));
 }

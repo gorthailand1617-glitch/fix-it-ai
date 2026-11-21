@@ -2,7 +2,6 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import {
   buildAffiliateSubId,
-  buildLazadaAffiliateLink,
   buildShopeeAffiliateLink,
   hasActiveAffiliateConfig,
 } from "@/lib/affiliate";
@@ -43,9 +42,7 @@ import { DiagnosticResponse, RepairCase } from "@/types/repair";
 
 const AFFILIATE_ENV_KEYS = [
   "NEXT_PUBLIC_SHOPEE_AFFILIATE_TEMPLATE",
-  "NEXT_PUBLIC_LAZADA_AFFILIATE_TEMPLATE",
   "NEXT_PUBLIC_SHOPEE_AFFILIATE_ID",
-  "NEXT_PUBLIC_LAZADA_ROOTLINK",
   "NEXT_PUBLIC_AFFILIATE_SUB_ID",
 ] as const;
 
@@ -79,13 +76,11 @@ function withAffiliateEnv(
 }
 
 describe("affiliate", () => {
-  it("builds default search links when templates and direct affiliate env vars are empty", () => {
+  it("builds default Shopee search links when templates and direct affiliate ID are empty", () => {
     withAffiliateEnv({}, () => {
       const shopee = buildShopeeAffiliateLink("แคปรันแอร์ 35uF");
-      const lazada = buildLazadaAffiliateLink("แคปรันแอร์ 35uF");
 
       assert.ok(shopee.startsWith("https://shopee.co.th/search?keyword="));
-      assert.ok(lazada.startsWith("https://www.lazada.co.th/catalog/?q="));
       assert.equal(hasActiveAffiliateConfig(), false);
     });
   });
@@ -95,7 +90,6 @@ describe("affiliate", () => {
       {
         NEXT_PUBLIC_SHOPEE_AFFILIATE_TEMPLATE:
           "https://invl.io/abc?url={url}&kw={keyword}&sub={subId}",
-        NEXT_PUBLIC_LAZADA_AFFILIATE_TEMPLATE: "AQ.Ab8RN6invalidTokenNotUrl",
       },
       () => {
         const shopee = buildShopeeAffiliateLink("obd2", {
@@ -103,29 +97,37 @@ describe("affiliate", () => {
           itemType: "tool",
           source: "card",
         });
-        const lazada = buildLazadaAffiliateLink("หัวเทียน");
 
         assert.ok(shopee.startsWith("https://invl.io/abc?url="));
         assert.ok(shopee.includes("&kw=obd2"));
         assert.ok(shopee.includes("&sub=fixitai-automotive-tool-card"));
-        assert.ok(lazada.startsWith("https://www.lazada.co.th/catalog/?q="));
         assert.equal(hasActiveAffiliateConfig(), true);
 
-        process.env.NEXT_PUBLIC_LAZADA_AFFILIATE_TEMPLATE =
-          "https://invl.io/laz?url=";
-        const lazadaPrefix = buildLazadaAffiliateLink("หัวเทียน");
+        process.env.NEXT_PUBLIC_SHOPEE_AFFILIATE_TEMPLATE =
+          "https://invl.io/shp?url=";
+        const shopeePrefix = buildShopeeAffiliateLink("หัวเทียน");
         assert.ok(
-          lazadaPrefix.startsWith("https://invl.io/laz?url=https%3A%2F%2F")
+          shopeePrefix.startsWith("https://invl.io/shp?url=https%3A%2F%2F")
         );
+      }
+    );
+
+    withAffiliateEnv(
+      {
+        NEXT_PUBLIC_SHOPEE_AFFILIATE_TEMPLATE: "AQ.Ab8RN6invalidTokenNotUrl",
+      },
+      () => {
+        const fallback = buildShopeeAffiliateLink("หัวเทียน");
+        assert.ok(fallback.startsWith("https://shopee.co.th/search?keyword="));
+        assert.equal(hasActiveAffiliateConfig(), false);
       }
     );
   });
 
-  it("builds direct Shopee an_redir and Lazada rootlink URLs with sub_id and validates inputs", () => {
+  it("builds direct Shopee an_redir URLs with sub_id and validates affiliate ID", () => {
     withAffiliateEnv(
       {
-        NEXT_PUBLIC_SHOPEE_AFFILIATE_ID: "14354840000",
-        NEXT_PUBLIC_LAZADA_ROOTLINK: "https://c.lazada.co.th/t/c.abc123",
+        NEXT_PUBLIC_SHOPEE_AFFILIATE_ID: "15324120009",
         NEXT_PUBLIC_AFFILIATE_SUB_ID: "my-shop_01!",
       },
       () => {
@@ -146,18 +148,8 @@ describe("affiliate", () => {
         assert.ok(
           shopee.startsWith("https://s.shopee.co.th/an_redir?origin_link=")
         );
-        assert.ok(shopee.includes("&affiliate_id=14354840000"));
+        assert.ok(shopee.includes("&affiliate_id=15324120009"));
         assert.ok(shopee.includes("&sub_id=myshop_01-automotive-part-card"));
-
-        const lazada = buildLazadaAffiliateLink("มัลติมิเตอร์", {
-          category: "appliance",
-          itemType: "tool",
-          source: "sheet",
-        });
-        assert.ok(
-          lazada.startsWith("https://c.lazada.co.th/t/c.abc123?url=https%3A%2F%2F")
-        );
-        assert.ok(lazada.includes("&sub_id=myshop_01-appliance-tool-sheet"));
         assert.equal(hasActiveAffiliateConfig(), true);
       }
     );
@@ -165,13 +157,10 @@ describe("affiliate", () => {
     withAffiliateEnv(
       {
         NEXT_PUBLIC_SHOPEE_AFFILIATE_ID: "x",
-        NEXT_PUBLIC_LAZADA_ROOTLINK: "javascript:alert(1)",
       },
       () => {
         const shopee = buildShopeeAffiliateLink("มัลติมิเตอร์");
-        const lazada = buildLazadaAffiliateLink("มัลติมิเตอร์");
         assert.ok(shopee.startsWith("https://shopee.co.th/search?keyword="));
-        assert.ok(lazada.startsWith("https://www.lazada.co.th/catalog/?q="));
         assert.equal(hasActiveAffiliateConfig(), false);
       }
     );

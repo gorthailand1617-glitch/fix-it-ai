@@ -15,7 +15,6 @@ import {
   X,
 } from "lucide-react";
 import {
-  buildLazadaAffiliateLink,
   buildShopeeAffiliateLink,
   hasActiveAffiliateConfig,
 } from "@/lib/affiliate";
@@ -263,21 +262,7 @@ export default function RepairSheetModal({
                         rel="noopener noreferrer"
                         className="inline-flex items-center gap-1 text-[11px] font-semibold text-orange-600 hover:underline"
                       >
-                        <span>Shopee</span>
-                        <ExternalLink className="w-2.5 h-2.5" />
-                      </a>
-                      <span className="text-slate-300">•</span>
-                      <a
-                        href={buildLazadaAffiliateLink(tool.name, {
-                          category: repairCase.category,
-                          itemType: "tool",
-                          source: "sheet",
-                        })}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="inline-flex items-center gap-1 text-[11px] font-semibold text-indigo-600 hover:underline"
-                      >
-                        <span>Lazada</span>
+                        <span>เช็กราคา Shopee</span>
                         <ExternalLink className="w-2.5 h-2.5" />
                       </a>
                     </div>
@@ -321,34 +306,19 @@ export default function RepairSheetModal({
                             {part.estimatedPriceThb}
                           </td>
                           <td className="px-3 py-2 whitespace-nowrap print:hidden">
-                            <div className="flex items-center gap-1.5">
-                              <a
-                                href={buildShopeeAffiliateLink(searchKw, {
-                                  category: repairCase.category,
-                                  itemType: "part",
-                                  source: "sheet",
-                                })}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="inline-flex items-center gap-1 px-2 py-1 rounded text-[11px] font-semibold bg-orange-600 text-white hover:bg-orange-700 transition-colors"
-                              >
-                                <span>Shopee</span>
-                                <ExternalLink className="w-2.5 h-2.5" />
-                              </a>
-                              <a
-                                href={buildLazadaAffiliateLink(searchKw, {
-                                  category: repairCase.category,
-                                  itemType: "part",
-                                  source: "sheet",
-                                })}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="inline-flex items-center gap-1 px-2 py-1 rounded text-[11px] font-semibold bg-indigo-600 text-white hover:bg-indigo-700 transition-colors"
-                              >
-                                <span>Lazada</span>
-                                <ExternalLink className="w-2.5 h-2.5" />
-                              </a>
-                            </div>
+                            <a
+                              href={buildShopeeAffiliateLink(searchKw, {
+                                category: repairCase.category,
+                                itemType: "part",
+                                source: "sheet",
+                              })}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="inline-flex items-center gap-1 px-2 py-1 rounded text-[11px] font-semibold bg-orange-600 text-white hover:bg-orange-700 transition-colors"
+                            >
+                              <span>Shopee</span>
+                              <ExternalLink className="w-2.5 h-2.5" />
+                            </a>
                           </td>
                         </tr>
                       );

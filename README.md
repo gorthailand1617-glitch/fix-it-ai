@@ -51,16 +51,14 @@
 | `ENABLE_GOOGLE_SEARCH` | เปิดใช้งาน Google Search Grounding (`true` / `false`) |
 | `DIAGNOSE_RATE_LIMIT_PER_MIN` | จำกัดคำขอต่อ IP ต่อนาทีสำหรับ `/api/diagnose` (ค่าเริ่มต้น `30`, ตั้ง `0` เพื่อปิด) |
 | `NEXT_PUBLIC_SHOPEE_AFFILIATE_ID` | รหัส Shopee Affiliate ID ตรง (สร้างลิงก์ `s.shopee.co.th/an_redir` พร้อม `sub_id` อัตโนมัติ) |
-| `NEXT_PUBLIC_LAZADA_ROOTLINK` | ลิงก์ Rootlink ของ Lazada Affiliate ตรง (เช่น `https://c.lazada.co.th/t/c.xxxxx`) |
 | `NEXT_PUBLIC_AFFILIATE_SUB_ID` | คำนำหน้า `sub_id` สำหรับติดตามหมวดงานซ่อมและตำแหน่งคลิก (ค่าเริ่มต้น `fixitai`) |
 | `NEXT_PUBLIC_SHOPEE_AFFILIATE_TEMPLATE` | เทมเพลตลิงก์ Affiliate Shopee แบบกำหนดเอง (รองรับ `{url}`, `{keyword}`, `{subId}`) |
-| `NEXT_PUBLIC_LAZADA_AFFILIATE_TEMPLATE` | เทมเพลตลิงก์ Affiliate Lazada แบบกำหนดเอง (รองรับ `{url}`, `{keyword}`, `{subId}`) |
 
 ---
 
-## การเพิ่มลิงก์สินค้า Affiliate แบบเจาะจง (Curated Products)
+## การเพิ่มลิงก์สินค้า Shopee Affiliate แบบเจาะจง (Curated Products)
 
-สามารถใส่ลิงก์สั้นรายสินค้าจาก Shopee (`https://s.shopee.co.th/...`) หรือ Lazada (`https://s.lazada.co.th/...`) ได้โดยตรงใน `src/data/affiliate-products.json` เพื่อให้จับคู่คำสำคัญจากชื่อเครื่องมือ/อะไหล่ที่ AI แนะนำให้อัตโนมัติก่อนใช้ลิงก์ค้นหาแบบไดนามิก
+สามารถใส่ลิงก์สั้นรายสินค้าจาก Shopee (`https://s.shopee.co.th/...`) ได้โดยตรงใน `src/data/affiliate-products.json` เพื่อให้จับคู่คำสำคัญจากชื่อเครื่องมือ/อะไหล่ที่ AI แนะนำให้อัตโนมัติก่อนใช้ลิงก์ค้นหาแบบไดนามิก
 
 ---
 

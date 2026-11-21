@@ -24,7 +24,6 @@ import {
 } from "lucide-react";
 import { DiagnosticResponse, RepairCategory, RiskLevel } from "@/types/repair";
 import {
-  buildLazadaAffiliateLink,
   buildShopeeAffiliateLink,
   hasActiveAffiliateConfig,
 } from "@/lib/affiliate";
@@ -653,19 +652,6 @@ function DiagnosticCard({
                         <span>เช็กราคา Shopee</span>
                         <ExternalLink className="w-2.5 h-2.5" />
                       </a>
-                      <a
-                        href={buildLazadaAffiliateLink(tool.name, {
-                          category,
-                          itemType: "tool",
-                          source: "card",
-                        })}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="inline-flex items-center gap-1 px-2 py-1 rounded-md text-[11px] font-semibold bg-indigo-50 text-indigo-700 border border-indigo-200 hover:bg-indigo-100 transition-colors"
-                      >
-                        <span>เช็กราคา Lazada</span>
-                        <ExternalLink className="w-2.5 h-2.5" />
-                      </a>
                     </div>
                   </div>
                 ))}
@@ -725,19 +711,6 @@ function DiagnosticCard({
                         className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-medium bg-orange-600 text-white hover:bg-orange-700 transition-colors"
                       >
                         <span>ซื้อบน Shopee</span>
-                        <ExternalLink className="w-3 h-3" />
-                      </a>
-                      <a
-                        href={buildLazadaAffiliateLink(part.searchKeyword, {
-                          category,
-                          itemType: "part",
-                          source: "card",
-                        })}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-medium bg-indigo-600 text-white hover:bg-indigo-700 transition-colors"
-                      >
-                        <span>ซื้อบน Lazada</span>
                         <ExternalLink className="w-3 h-3" />
                       </a>
                       <a
